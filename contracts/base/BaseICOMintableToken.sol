@@ -1,4 +1,4 @@
-pragma solidity 0.4.23;
+pragma solidity 0.4.24;
 
 import "./BaseICOToken.sol";
 
@@ -9,24 +9,26 @@ contract BaseICOMintableToken is BaseICOToken {
 
     uint public mintRemain;
 
-    constructor(uint totalSupply_) public BaseICOToken(totalSupply_) {
-        setupMint();
+    event TokensMinted(uint mintedAmount, uint totalSupply);
+
+    constructor(uint totalSupplyWei_) public BaseICOToken(totalSupplyWei_) {
     }
 
     /**
     * @dev Mint token.
-    * @param _mintedAmount amount to mint.
+    * @param mintedAmount_ amount to mint.
     */
-    function mintToken(uint _mintedAmount) public onlyOwner {
-        setupMint();
-        require(_mintedAmount <= getAvailableForMint());
-        totalSupply = totalSupply.add(_mintedAmount);
-        mintRemain = mintRemain.sub(_mintedAmount);
+    function mintToken(uint mintedAmount_) public onlyOwner {
+        mintCheck(mintedAmount_);
+        require(mintedAmount_ <= getAvailableForMint());
+        totalSupply = totalSupply.add(mintedAmount_);
+        mintRemain = mintRemain.sub(mintedAmount_);
+        emit TokensMinted(mintedAmount_, totalSupply);
     }
 
     function getAvailableForMint() public constant returns (uint) {
         return mintRemain;
     }
 
-    function setupMint() internal;
+    function mintCheck(uint) internal;
 }
