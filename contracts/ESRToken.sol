@@ -76,9 +76,7 @@ contract ESRToken is BaseICOMintableToken {
    * @param amount_ Number of tokens distributed with decimals part
    */
   function assignReserved(address to_, uint8 group_, uint amount_) public onlyOwner {
-      require(to_ != address(0) && (group_ & 0xF) != 0);
-      require(group_ != RESERVED_TEAM_GROUP || (group_ == RESERVED_TEAM_GROUP && !reservedReserveLocked));
-      require(group_ != RESERVED_BOUNTY_GROUP || (group_ == RESERVED_BOUNTY_GROUP && !reservedReserveLocked));
+      require(to_ != address(0) && (group_ & 0xF) != 0 && !reservedReserveLocked);
       // SafeMath will check reserved[group_] >= amount
       reserved[group_] = reserved[group_].sub(amount_);
       balances[to_] = balances[to_].add(amount_);
