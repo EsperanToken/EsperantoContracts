@@ -14,6 +14,9 @@ contract BaseICOToken is BaseFixedERC20Token {
     /// @dev ICO/Pre-ICO smart contract allowed to distribute public funds for this
     address public ico;
 
+    /// @dev Token/ETH exchange ratio
+    uint public ethTokenExchangeRatio;
+
     /// @dev Fired if investment for `amount` of tokens performed by `to` address
     event ICOTokensInvested(address indexed to, uint amount);
 
@@ -45,20 +48,15 @@ contract BaseICOToken is BaseFixedERC20Token {
         emit ICOChanged(ico);
     }
 
-    /**
-     * @dev Assign `amount_` of tokens to investor identified by `to_` address.
-     * @param to_ Investor address.
-     * @param amount_ Number of tokens distributed.
-     */
-    function icoInvestment(address to_, uint amount_) public onlyICO returns (uint) {
-        require(isValidICOInvestment(to_, amount_));
-        availableSupply = availableSupply.sub(amount_);
-        balances[to_] = balances[to_].add(amount_);
-        emit ICOTokensInvested(to_, amount_);
-        return amount_;
-    }
-
     function isValidICOInvestment(address to_, uint amount_) internal view returns (bool) {
         return to_ != address(0) && amount_ <= availableSupply;
     }
+
+    /**
+     * @dev Assign `amountWei_` of wei converted into tokens to investor identified by `to_` address.
+     * @param to_ Investor address.
+     * @param amountWei_ Number of wei invested
+     * @return Amount of invested tokens
+     */
+    function icoInvestmentWei(address to_, uint amountWei_) public returns (uint);
 }

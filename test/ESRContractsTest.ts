@@ -10,7 +10,7 @@ const it = (<any>global).it as ItTestFn;
 const assert = (<any>global).assert as Chai.AssertStatic;
 
 const ESRToken = artifacts.require('./ESRToken.sol');
-const ONE_TOKEN = new BigNumber('5e14');
+const ONE_TOKEN = new BigNumber('1e18');
 
 function tokens(val: BigNumber.NumberLike): string {
   return new BigNumber(val).times(ONE_TOKEN).toString();
@@ -282,7 +282,7 @@ contract('ESRContracts', function (accounts: string[]) {
   it('should token allow transferFrom', async () => {
     const token = await ESRToken.deployed();
     let reserve1TokenBalance = new BigNumber(await token.balanceOf.call(actors.reserve1));
-    let reserve2TokenBalance = new BigNumber(await token.balanceOf.call(actors.reserve2));
+    const reserve2TokenBalance = new BigNumber(await token.balanceOf.call(actors.reserve2));
     let reserve3TokenBalance = new BigNumber(await token.balanceOf.call(actors.reserve3));
 
     // Token should be unlocked
