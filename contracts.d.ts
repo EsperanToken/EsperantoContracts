@@ -5,6 +5,7 @@ import { NumberLike } from 'bignumber.js';
 
 interface Artifacts {
   require(name: './ESRToken.sol'): IContract<IESRToken>;
+  require(name: './ESRTICO.sol'): IContract<IESRTICO>;
   require(name: './Migrations.sol'): IContract<IContractInstance>;
 }
 
@@ -164,6 +165,9 @@ interface IBaseICOToken extends IBaseFixedERC20Token {
   // ICO/Pre-ICO smart contract allowed to distribute public funds for this Token
   ico: ISimpleCallable<address>;
 
+  // Token/ETH exchange ratio
+  ethTokenExchangeRatio: ISimpleCallable<NumberLike>;
+
   /**
    * Set address of ICO smart-contract which controls token
    * initial token distribution.
@@ -172,11 +176,11 @@ interface IBaseICOToken extends IBaseFixedERC20Token {
   changeICO(ico: address, tr?: Web3.TransactionRequest): Promise<ITXResult>;
 
   /**
-   * Assign `amount` of tokens to investor identified by `to` address.
+   * @dev Assign `amountWei` of wei converted into tokens to investor identified by `to` address.
    * @param to Investor address.
-   * @param amount Number of tokens distributed.
+   * @param amountWei Number of wei invested
    */
-  icoInvestment(to: address, amount: NumberLike, tr?: Web3.TransactionRequest): Promise<ITXResult>;
+  icoInvestmentWei(to: address, amountWei: NumberLike, tr?: Web3.TransactionRequest): Promise<ITXResult>;
 }
 
 /**
@@ -189,17 +193,98 @@ interface IBaseICOMintableToken extends IBaseICOToken {
    * @param amount Amount to mint
    */
   mintToken(amount: NumberLike, tr?: Web3.TransactionRequest): Promise<ITXResult>;
-
-  /**
-   * Get available tokens for mint
-   */
-  getAvailableForMint: {
-    call(tr?: Web3.TransactionRequest): Promise<NumberLike>;
-  };
 }
 
 /**
- * ERC20 MCC Token
+ * @dev Base abstract smart contract for any ICO
+ */
+interface IBaseICO extends IContractInstance, IOwnable, IWhitelisted {
+  // ICO controlled token
+  token: ISimpleCallable<address>;
+
+  // Team wallet
+  teamWallet: ISimpleCallable<address>;
+
+  // Current ICO state.
+  state: ISimpleCallable<number>;
+
+  // ICO start date seconds since epoch.
+  startAt: ISimpleCallable<NumberLike>;
+
+  // ICO end date seconds since epoch.
+  endAt: ISimpleCallable<NumberLike>;
+
+  // Minimal amount of investments in tokens needed for successful ICO
+  lowCapTokens: ISimpleCallable<NumberLike>;
+
+  // Maximal amount of investments in tokens for this ICO.
+  // If reached ICO will be in `Completed` state.
+  hardCapTokens: ISimpleCallable<NumberLike>;
+
+  // Minimal amount of investments in wei per investor.
+  lowCapTxWei: ISimpleCallable<NumberLike>;
+
+  // Maximal amount of investments in wei per investor.
+  hardCapTxWei: ISimpleCallable<NumberLike>;
+
+  /**
+   * Trigger start of ICO.
+   * @param endAt ICO end date, seconds since epoch.
+   */
+  start(endAt: NumberLike, tr?: Web3.TransactionRequest): Promise<ITXResult>;
+
+  /**
+   * Suspend this ICO.
+   * ICO can be activated later by calling `resume()` function.
+   * In suspend state, ICO owner can change basic ICO parameter using `tune()` function,
+   * tokens cannot be distributed among investors.
+   */
+  suspend(tr?: Web3.TransactionRequest): Promise<ITXResult>;
+
+  /**
+   * Terminate the ICO.
+   * ICO goals are not reached, ICO terminated and cannot be resumed.
+   */
+  terminate(tr?: Web3.TransactionRequest): Promise<ITXResult>;
+
+  /**
+   * @dev Change basic ICO parameters. Can be done only during `Suspended` state.
+   * Any provided parameter is used only if it is not zero.
+   * @param endAt ICO end date seconds since epoch. Used if it is not zero.
+   * @param lowCapTokens ICO low capacity. Used if it is not zero.
+   * @param hardCapTokens ICO hard capacity. Used if it is not zero.
+   * @param lowCapTxWei Min limit for ICO per transaction
+   * @param hardCapTxWei Hard limit for ICO per transaction
+   */
+  tune(
+      endAt: NumberLike,
+      lowCapTokens: NumberLike,
+      hardCapTokens: NumberLike,
+      lowCapTxWei: NumberLike,
+      hardCapTxWei: NumberLike,
+      tr?: Web3.TransactionRequest
+  ): Promise<ITXResult>;
+
+  /**
+   * Resume a previously suspended ICO.
+   */
+  resume(tr?: Web3.TransactionRequest): Promise<ITXResult>;
+
+  /**
+   * Recalculate ICO state based on current block time.
+   * Should be called periodically by ICO owner.
+   */
+  touch(tr?: Web3.TransactionRequest): Promise<ITXResult>;
+
+  /**
+   * Buy tokens. (payable)
+   */
+  buyTokens(tr?: Web3.TransactionRequest): Promise<ITXResult>;
+
+}
+
+/**
+ * ERC20 ESR Token
  */
 interface IESRToken extends IBaseICOMintableToken {
 
@@ -212,11 +297,8 @@ interface IESRToken extends IBaseICOMintableToken {
   // Token decimals
   decimals: ISimpleCallable<NumberLike>;
 
-  // Reserve reserved tokens is locked
-  reservedReserveLocked: ISimpleCallable<boolean>;
-
-  // Switch state of reservedReserveLocked
-  toggleReserveLock(tr?:Web3.TransactionRequest): Promise<ITXResult>;
+  // Update ETH/Token ratio
+  updateTokenExchangeRatio(ethTokenExchangeRatio: NumberLike, tr?: Web3.TransactionRequest): Promise<ITXResult>;
 
   getReservedTokens: {
     call(side: TokenReservation, tr?: Web3.TransactionRequest): Promise<NumberLike>;
@@ -235,4 +317,15 @@ interface IESRToken extends IBaseICOMintableToken {
     amount: NumberLike,
     tr?: Web3.TransactionRequest
   ): Promise<ITXResult>;
+}
+
+/**
+ * ERS token ICO smart contract.
+ */
+interface IESRTICO extends IBaseICO {
+  // Total number of invested wei
+  collectedWei: ISimpleCallable<NumberLike>;
+
+  // Total number of assigned tokens
+  collectedTokens: ISimpleCallable<NumberLike>;
 }

@@ -12,17 +12,17 @@ contract ESRTICO is BaseICO {
   /// @dev Total number of assigned tokens
   uint public collectedTokens;
 
-  bool internal hardCapChecked = false;
+  bool internal lowCapChecked = false;
 
   constructor(address icoToken_,
               address teamWallet_) public {
     require(icoToken_ != address(0) && teamWallet_ != address(0));
     token = BaseICOToken(icoToken_);
-    hardCapTokens = 60e6; // 60M Tokens
-    lowCapTokens = 15e5;  // 1.5M Tokens
-    hardCapTxWei = 1e30;  // practicaly infinite
+    teamWallet = teamWallet_;
+    hardCapTokens = 60e24; // 60M Tokens
+    lowCapTokens = 15e23;  // 1.5M Tokens
+    hardCapTxWei = 1e30;  // practically infinite
     lowCapTxWei = 5e16;   // 0.05 ETH
-    endAt = 1559347200;   // 2019-06-01T00:00:00.000Z
   }
 
   /**
@@ -44,9 +44,9 @@ contract ESRTICO is BaseICO {
       state = State.Completed;
       endAt = block.timestamp;
       emit ICOCompleted(collectedTokens);
-    } else if (!hardCapChecked && block.timestamp >= 1554076800) { //  2019-04-01T00:00:00.000Z
-      hardCapChecked = true;
-      if (collectedTokens < hardCapTokens) {
+    } else if (!lowCapChecked && block.timestamp >= 1554076800) { //  2019-04-01T00:00:00.000Z
+      lowCapChecked = true;
+      if (collectedTokens < lowCapTokens) {
         state = State.NotCompleted;
         emit ICONotCompleted();
       }

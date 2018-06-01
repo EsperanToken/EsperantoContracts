@@ -48,10 +48,10 @@ contract BaseICO is Ownable, Whitelisted {
   /// @dev ICO end date seconds since epoch.
   uint public endAt;
 
-  /// @dev Minimal amount of investments in wei needed for successfull ICO
+  /// @dev Minimal amount of investments in tokens needed for successful ICO
   uint public lowCapTokens;
 
-  /// @dev Maximal amount of investments in wei for this ICO.
+  /// @dev Maximal amount of investments in tokens for this ICO.
   /// If reached ICO will be in `Completed` state.
   uint public hardCapTokens;
 
@@ -60,9 +60,6 @@ contract BaseICO is Ownable, Whitelisted {
 
   /// @dev Maximal amount of investments in wei per investor.
   uint public hardCapTxWei;
-
-  /// @dev Number of investments collected by this ICO
-  uint public collectedTokens;
 
   /// @dev Team wallet used to collect funds
   address public teamWallet;

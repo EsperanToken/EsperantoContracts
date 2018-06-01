@@ -1,39 +1,56 @@
 import { ItTestFn } from '../globals';
 import * as BigNumber from 'bignumber.js';
 import {
-  IESRToken, TokenReservation
+  ICOState,
+  IESRTICO,
+  TokenReservation
 } from '../contracts';
 import { assertEvmThrows, assertEvmInvalidOpcode } from './lib/assert';
-import { web3LatestTime, Seconds, web3IncreaseTimeTo, web3IncreaseTime } from './lib/time';
+import { Seconds, web3IncreaseTimeTo } from './lib/time';
 
 const it = (<any>global).it as ItTestFn;
 const assert = (<any>global).assert as Chai.AssertStatic;
 
 const ESRToken = artifacts.require('./ESRToken.sol');
+const ESRTICO = artifacts.require('./ESRTICO.sol');
 const ONE_TOKEN = new BigNumber('1e18');
+const BONUS_20_END_AT = 1538352000; // 2018-10-01T00:00:00.000Z
+const BONUS_10_END_AT = 1546300800; // 2019-01-01T00:00:00.000Z
+const BONUS_05_END_AT = 1554076800; // 2019-04-01T00:00:00.000Z
+const END_AT = 1559347200; // 2019-06-01T00:00:00.000Z
+const TOKEN_UNLOCK_AT = 1569888000; // 2019-10-01T00:00:00.000Z
+const MINT_UNLOCK_AT = 1590969600; // 2020-06-01T00:00:00.000Z
 
 function tokens(val: BigNumber.NumberLike): string {
   return new BigNumber(val).times(ONE_TOKEN).toString();
 }
 
-function tokens2wei(val: BigNumber.NumberLike, exchangeRatio: number): string {
+function tokens2wei(val: BigNumber.NumberLike, exchangeRatio: BigNumber.NumberLike, bonus: number): string {
   return new BigNumber(val)
     .mul(ONE_TOKEN)
+    .mul(100)
     .divToInt(exchangeRatio)
+    .divToInt(100 + bonus)
     .toString();
 }
 
-function wei2rawtokens(val: BigNumber.NumberLike, exchangeRatio: number): string {
+function wei2rawtokens(val: BigNumber.NumberLike, exchangeRatio: BigNumber.NumberLike, bonus: number): string {
   return new BigNumber(val)
     .mul(exchangeRatio)
+    .mul(100 + bonus)
+    .divToInt(100)
     .toString();
 }
+
+// ICO Instance
+let Ico: IESRTICO | null;
 
 const state = {
   availableTokens: new BigNumber(0),
   teamWalletBalance: new BigNumber(0),
   teamWalletInitialBalance: new BigNumber(0),
   sentWei: new BigNumber(0),
+  collectedTokens: new BigNumber(0),
   investor1Wei: new BigNumber(0),
   investor2Wei: new BigNumber(0),
   investor3Wei: new BigNumber(0),
@@ -41,7 +58,8 @@ const state = {
   investor5Wei: new BigNumber(0),
   investor6Wei: new BigNumber(0),
   investor7Wei: new BigNumber(0),
-  investor8Wei: new BigNumber(0)
+  investor8Wei: new BigNumber(0),
+  exchangeEthTokenRatio: new BigNumber(3000)
 };
 
 contract('ESRContracts', function (accounts: string[]) {
@@ -80,6 +98,8 @@ contract('ESRContracts', function (accounts: string[]) {
     assert.equal(await token.symbol.call(), 'ESRT');
     // Token decimals
     assert.equal(await token.decimals.call(), 18);
+    // ETH/Token exchange ratio
+    assert.equal(await token.ethTokenExchangeRatio.call(), state.exchangeEthTokenRatio.toString());
 
     state.availableTokens = new BigNumber(await token.availableSupply.call());
     // Team
@@ -95,7 +115,7 @@ contract('ESRContracts', function (accounts: string[]) {
     );
   });
 
-  it('should be lockable token', async () => {
+  it('should be locked until special date', async () => {
     const token = await ESRToken.deployed();
     // Token locked
     assert.equal(await token.locked.call(), true);
@@ -103,18 +123,8 @@ contract('ESRContracts', function (accounts: string[]) {
     await assertEvmThrows(token.transfer(actors.someone1, 1, {from: actors.owner}));
     await assertEvmThrows(token.transferFrom(actors.someone1, actors.someone1, 1, {from: actors.owner}));
     await assertEvmThrows(token.approve(actors.someone1, 1, {from: actors.owner}));
-    // Unlock allowed only for owner
-    await assertEvmThrows(token.unlock({from: actors.someone1}));
-    let txres = await token.unlock({from: actors.owner});
-    assert.equal(txres.logs[0].event, 'Unlock');
-
-    // Token unlocked
-    assert.equal(await token.locked.call(), false);
-
-    // Lock allowed only for owner
-    await assertEvmThrows(token.lock({from: actors.someone1}));
-    txres = await token.lock({from: actors.owner});
-    assert.equal(txres.logs[0].event, 'Lock');
+    // Unlock allowed only for owner after 2019-10-01T00:00:00.000Z
+    await assertEvmThrows(token.unlock({from: actors.owner}));
   });
 
   it('should be ownable token', async () => {
@@ -134,12 +144,6 @@ contract('ESRContracts', function (accounts: string[]) {
 
     // Check access
     await assertEvmThrows(token.transferOwnership(actors.someone2, {from: actors.owner}));
-    txres = await token.unlock({from: actors.someone1});
-    assert.equal(txres.logs[0].event, 'Unlock');
-    assert.equal(await token.locked.call(), false);
-    txres = await token.lock({from: actors.someone1});
-    assert.equal(txres.logs[0].event, 'Lock');
-    assert.equal(await token.locked.call(), true);
 
     // Return ownership
     txres = await token.transferOwnership(actors.owner, {from: actors.someone1});
@@ -159,17 +163,6 @@ contract('ESRContracts', function (accounts: string[]) {
     assert.equal(new BigNumber(await token.getReservedTokens.call(TokenReservation.Team)).toString(), tokens(12e6));
     assert.equal(new BigNumber(await token.getReservedTokens.call(TokenReservation.Bounty)).toString(), tokens(30e6));
     assert.equal(new BigNumber(await token.getReservedTokens.call(TokenReservation.Partners)).toString(), tokens(18e6));
-
-    assert.equal(await token.reservedReserveLocked.call(), true);
-    // Do not allow token reservation while reserve is locked
-    await assertEvmThrows(
-        token.assignReserved(actors.team1, TokenReservation.Team, tokens(1e6), {from: actors.owner})
-    );
-
-    // Others can't toggle reserve lock
-    await assertEvmThrows(token.toggleReserveLock({from: actors.someone1}));
-    await token.toggleReserveLock({from: actors.owner});
-    assert.equal(await token.reservedReserveLocked.call(), false);
 
     // Reserve tokens from team group
     let txres = await token.assignReserved(actors.reserve1, TokenReservation.Team, tokens(1e6), {
@@ -229,11 +222,504 @@ contract('ESRContracts', function (accounts: string[]) {
     await assertEvmThrows(
         token.assignReserved(actors.team1, TokenReservation.Partners, tokens(1e6), {from: actors.someone1})
     );
+  });
 
-    // Others can't toggle reserve lock
-    await assertEvmThrows(token.toggleReserveLock({from: actors.someone1}));
-    await token.toggleReserveLock({from: actors.owner});
-    assert.equal(await token.reservedReserveLocked.call(), true);
+  it('should ico contract deployed', async () => {
+    const token = await ESRToken.deployed();
+    Ico = await ESRTICO.new(
+        token.address,
+        actors.teamWallet,
+        {
+          from: actors.owner
+        }
+    );
+    state.teamWalletInitialBalance =
+        state.teamWalletBalance = await web3.eth.getBalance(actors.teamWallet);
+    assert.equal(await Ico.token.call(), token.address);
+    assert.equal(await Ico.teamWallet.call(), actors.teamWallet);
+    assert.equal(await Ico.lowCapTokens.call(), new BigNumber('15e23').toString());
+    assert.equal(await Ico.hardCapTokens.call(), new BigNumber('60e24').toString());
+    assert.equal(await Ico.lowCapTxWei.call(), new BigNumber('5e16').toString());
+    assert.equal(await Ico.hardCapTxWei.call(), new BigNumber('1e30').toString());
+
+    // Token is not controlled by any ICO
+    assert.equal(await token.ico.call(), '0x0000000000000000000000000000000000000000');
+    // Assign ICO controller contract
+    const txres = await token.changeICO(Ico.address, {from: actors.owner});
+    assert.equal(txres.logs[0].event, 'ICOChanged');
+    assert.equal(await token.ico.call(), Ico.address);
+    // Ensure no others can check ICO contract fot token
+    await assertEvmThrows(token.changeICO(Ico.address, {from: actors.someone1}));
+    // Check ico state
+    assert.equal(await Ico.state.call(), ICOState.Inactive);
+  });
+
+  it('check whitelist access', async () => {
+    assert.isTrue(Ico != null);
+    const ico = Ico!!;
+
+    await assertEvmThrows(ico.disableWhitelist({from: actors.someone1}));
+    await assertEvmThrows(ico.whitelist(actors.someone1, {from: actors.someone1}));
+    await ico.disableWhitelist({from: actors.owner});
+    await ico.enableWhitelist({from: actors.owner});
+  });
+
+  it('ICO lifecycle: start', async () => {
+    assert.isTrue(Ico != null);
+    const ico = Ico!!;
+    assert.equal(await ico.state.call(), ICOState.Inactive);
+
+    await ico.start(END_AT, {from: actors.owner});
+    assert.equal(await ico.state.call(), ICOState.Active);
+    assert.equal(await ico.endAt.call(), END_AT);
+  });
+
+  it('ICO lifecycle: invest (with 20% bonus)', async () => {
+    const token = await ESRToken.deployed();
+    assert.isTrue(Ico != null);
+    const ico = Ico!!;
+
+    assert.equal(await ico.state.call(), ICOState.Active);
+
+    // Check link
+    assert.equal(await token.ico.call(), ico.address);
+    assert.equal(await ico.token.call(), token.address);
+
+    // Perform investments (investor1)
+    let investor1Tokens = new BigNumber(0);
+    const balance = web3.eth.getBalance(actors.investor1);
+    assert.equal(balance.toString(), new BigNumber('100e18').toString());
+
+    // Check deny not white-listed addresses
+    const invest1 = tokens2wei(7200, state.exchangeEthTokenRatio, 20);
+    await assertEvmThrows(
+        ico.sendTransaction({
+                              value: invest1,
+                              from: actors.investor1
+                            })
+    );
+
+    // Add investor1 to white-list
+    await ico.whitelist(actors.investor1);
+    // Now it can buy tokens
+    state.availableTokens = state.availableTokens.sub(tokens(7200));
+    state.collectedTokens = state.collectedTokens.add(tokens(7200));
+    let txres = await ico.sendTransaction({
+                                            value: invest1,
+                                            from: actors.investor1
+                                          });
+    state.sentWei = state.sentWei.add(invest1);
+    state.investor1Wei = state.investor1Wei.add(invest1);
+    assert.equal(txres.logs[0].event, 'ICOInvestment');
+    assert.equal(txres.logs[0].args.investedWei, invest1.toString());
+    assert.equal(txres.logs[0].args.bonusPct, 20);
+    assert.equal(
+        txres.logs[0].args.tokens,
+        wei2rawtokens(txres.logs[0].args.investedWei, state.exchangeEthTokenRatio, 20).toString()
+    );
+    investor1Tokens = investor1Tokens.add(txres.logs[0].args.tokens);
+    assert.equal(await token.balanceOf.call(actors.investor1), txres.logs[0].args.tokens.toString());
+    assert.equal(await token.balanceOf.call(actors.investor1), investor1Tokens.toString());
+    assert.equal(await token.availableSupply.call(), state.availableTokens.toString());
+
+    state.teamWalletBalance = state.teamWalletBalance.add(invest1);
+    assert.equal(web3.eth.getBalance(actors.teamWallet).toString(), state.teamWalletBalance.toString());
+
+    // Add investor2 to white-list
+    await ico.whitelist(actors.investor2);
+    state.availableTokens = state.availableTokens.sub(tokens(14400));
+    state.collectedTokens = state.collectedTokens.add(tokens(14400));
+    const invest2 = tokens2wei(14400, state.exchangeEthTokenRatio, 20);
+
+    await web3IncreaseTimeTo(BONUS_20_END_AT - Seconds.minutes(1));
+    txres = await ico.buyTokens({
+                                  value: invest2,
+                                  from: actors.investor2
+                                });
+    state.sentWei = state.sentWei.add(invest2);
+    state.investor2Wei = state.investor2Wei.add(invest2);
+    assert.equal(txres.logs[0].event, 'ICOInvestment');
+    assert.equal(txres.logs[0].args.investedWei, invest2.toString());
+    assert.equal(txres.logs[0].args.bonusPct, 20);
+    assert.equal(
+        txres.logs[0].args.tokens,
+        wei2rawtokens(txres.logs[0].args.investedWei, state.exchangeEthTokenRatio, 20).toString()
+    );
+    assert.equal(await token.balanceOf.call(actors.investor2), txres.logs[0].args.tokens.toString());
+    assert.equal(await token.availableSupply.call(), state.availableTokens.toString());
+
+    state.teamWalletBalance = state.teamWalletBalance.add(invest2);
+    assert.equal(web3.eth.getBalance(actors.teamWallet).toString(), state.teamWalletBalance.toString());
+  });
+
+  it('ICO lifecycle: invest (with 10% bonus)', async () => {
+    const token = await ESRToken.deployed();
+    assert.isTrue(Ico != null);
+    const ico = Ico!!;
+
+    assert.equal(await ico.state.call(), ICOState.Active);
+
+    // Check link
+    assert.equal(await token.ico.call(), ico.address);
+    assert.equal(await ico.token.call(), token.address);
+
+    await web3IncreaseTimeTo(BONUS_20_END_AT + 1);
+
+    // Perform investments (investor3)
+    let investor3Tokens = new BigNumber(0);
+    const balance = web3.eth.getBalance(actors.investor3);
+    assert.equal(balance.toString(), new BigNumber('100e18').toString());
+
+    // Check deny not white-listed addresses
+    const invest3 = tokens2wei(9900, state.exchangeEthTokenRatio, 10);
+    await assertEvmThrows(
+        ico.sendTransaction({
+                              value: invest3,
+                              from: actors.investor3
+                            })
+    );
+
+    // Add investor3 to white-list
+    await ico.whitelist(actors.investor3);
+    // Now it can buy tokens
+    state.availableTokens = state.availableTokens.sub(tokens(9900));
+    state.collectedTokens = state.collectedTokens.add(tokens(9900));
+    let txres = await ico.sendTransaction({
+                                            value: invest3,
+                                            from: actors.investor3
+                                          });
+    state.sentWei = state.sentWei.add(invest3);
+    state.investor3Wei = state.investor3Wei.add(invest3);
+    assert.equal(txres.logs[0].event, 'ICOInvestment');
+    assert.equal(txres.logs[0].args.investedWei, invest3.toString());
+    assert.equal(txres.logs[0].args.bonusPct, 10);
+    assert.equal(
+        txres.logs[0].args.tokens,
+        wei2rawtokens(txres.logs[0].args.investedWei, state.exchangeEthTokenRatio, 10).toString()
+    );
+    investor3Tokens = investor3Tokens.add(txres.logs[0].args.tokens);
+    assert.equal(await token.balanceOf.call(actors.investor3), txres.logs[0].args.tokens.toString());
+    assert.equal(await token.balanceOf.call(actors.investor3), investor3Tokens.toString());
+    assert.equal(await token.availableSupply.call(), state.availableTokens.toString());
+
+    state.teamWalletBalance = state.teamWalletBalance.add(invest3);
+    assert.equal(web3.eth.getBalance(actors.teamWallet).toString(), state.teamWalletBalance.toString());
+
+    // Tune ETH/Token ratio
+    state.exchangeEthTokenRatio = new BigNumber(2000);
+    txres = await token.updateTokenExchangeRatio(state.exchangeEthTokenRatio.toString(), {from: actors.owner});
+    assert.equal(txres.logs[0].event, 'EthTokenExchangeRatioUpdated');
+    assert.equal(txres.logs[0].args.ethTokenExchangeRatio, state.exchangeEthTokenRatio.toString());
+    assert.equal(await token.ethTokenExchangeRatio.call(), state.exchangeEthTokenRatio.toString());
+    // Only owner can change ETH/Token ratio
+    await assertEvmThrows(token.updateTokenExchangeRatio(1, {from: actors.someone1}));
+
+    // Add investor4 to white-list
+    await ico.whitelist(actors.investor4);
+    state.availableTokens = state.availableTokens.sub(tokens(6600));
+    state.collectedTokens = state.collectedTokens.add(tokens(6600));
+    const invest4 = tokens2wei(6600, state.exchangeEthTokenRatio, 10);
+    await web3IncreaseTimeTo(BONUS_10_END_AT - Seconds.minutes(1));
+    txres = await ico.buyTokens({
+                                  value: invest4,
+                                  from: actors.investor4
+                                });
+    state.sentWei = state.sentWei.add(invest4);
+    state.investor4Wei = state.investor4Wei.add(invest4);
+    assert.equal(txres.logs[0].event, 'ICOInvestment');
+    assert.equal(txres.logs[0].args.investedWei, invest4.toString());
+    assert.equal(txres.logs[0].args.bonusPct, 10);
+    assert.equal(
+        txres.logs[0].args.tokens,
+        wei2rawtokens(txres.logs[0].args.investedWei, state.exchangeEthTokenRatio, 10).toString()
+    );
+    assert.equal(await token.balanceOf.call(actors.investor4), txres.logs[0].args.tokens.toString());
+    assert.equal(await token.availableSupply.call(), state.availableTokens.toString());
+
+    state.teamWalletBalance = state.teamWalletBalance.add(invest4);
+    assert.equal(web3.eth.getBalance(actors.teamWallet).toString(), state.teamWalletBalance.toString());
+  });
+
+  it('ICO lifecycle: invest (with 5% bonus)', async () => {
+    const token = await ESRToken.deployed();
+    assert.isTrue(Ico != null);
+    const ico = Ico!!;
+
+    assert.equal(await ico.state.call(), ICOState.Active);
+
+    // Check link
+    assert.equal(await token.ico.call(), ico.address);
+    assert.equal(await ico.token.call(), token.address);
+
+    await web3IncreaseTimeTo(BONUS_10_END_AT + 1);
+
+    // Perform investments (investor5)
+    let investor5Tokens = new BigNumber(0);
+    const balance = web3.eth.getBalance(actors.investor5);
+    assert.equal(balance.toString(), new BigNumber('100e18').toString());
+
+    // Check deny not white-listed addresses
+    const invest5 = tokens2wei(6300, state.exchangeEthTokenRatio, 5);
+    await assertEvmThrows(
+        ico.sendTransaction({
+                              value: invest5,
+                              from: actors.investor5
+                            })
+    );
+
+    // Add investor5 to white-list
+    await ico.whitelist(actors.investor5);
+    // Now it can buy tokens
+    state.availableTokens = state.availableTokens.sub(tokens(6300));
+    state.collectedTokens = state.collectedTokens.add(tokens(6300));
+    let txres = await ico.sendTransaction({
+                                            value: invest5,
+                                            from: actors.investor5
+                                          });
+    state.sentWei = state.sentWei.add(invest5);
+    state.investor5Wei = state.investor5Wei.add(invest5);
+    assert.equal(txres.logs[0].event, 'ICOInvestment');
+    assert.equal(txres.logs[0].args.investedWei, invest5.toString());
+    assert.equal(txres.logs[0].args.bonusPct, 5);
+    assert.equal(
+        txres.logs[0].args.tokens,
+        wei2rawtokens(txres.logs[0].args.investedWei, state.exchangeEthTokenRatio, 5).toString()
+    );
+    investor5Tokens = investor5Tokens.add(txres.logs[0].args.tokens);
+    assert.equal(await token.balanceOf.call(actors.investor5), txres.logs[0].args.tokens.toString());
+    assert.equal(await token.balanceOf.call(actors.investor5), investor5Tokens.toString());
+    assert.equal(await token.availableSupply.call(), state.availableTokens.toString());
+
+    state.teamWalletBalance = state.teamWalletBalance.add(invest5);
+    assert.equal(web3.eth.getBalance(actors.teamWallet).toString(), state.teamWalletBalance.toString());
+
+    // Tune ETH/Token ratio
+    state.exchangeEthTokenRatio = new BigNumber(1000);
+    txres = await token.updateTokenExchangeRatio(state.exchangeEthTokenRatio.toString(), {from: actors.owner});
+    assert.equal(txres.logs[0].event, 'EthTokenExchangeRatioUpdated');
+    assert.equal(txres.logs[0].args.ethTokenExchangeRatio, state.exchangeEthTokenRatio.toString());
+    assert.equal(await token.ethTokenExchangeRatio.call(), state.exchangeEthTokenRatio.toString());
+    // Only owner can change ETH/Token ratio
+    await assertEvmThrows(token.updateTokenExchangeRatio(1, {from: actors.someone1}));
+
+    // Add investor6 to white-list
+    await ico.whitelist(actors.investor6);
+    state.availableTokens = state.availableTokens.sub(tokens(21000));
+    state.collectedTokens = state.collectedTokens.add(tokens(21000));
+    const invest6 = tokens2wei(21000, state.exchangeEthTokenRatio, 5);
+    await web3IncreaseTimeTo(BONUS_05_END_AT - Seconds.minutes(1));
+    txres = await ico.buyTokens({
+                                  value: invest6,
+                                  from: actors.investor6
+                                });
+    state.sentWei = state.sentWei.add(invest6);
+    state.investor6Wei = state.investor6Wei.add(invest6);
+    assert.equal(txres.logs[0].event, 'ICOInvestment');
+    assert.equal(txres.logs[0].args.investedWei, invest6.toString());
+    assert.equal(txres.logs[0].args.bonusPct, 5);
+    assert.equal(
+        txres.logs[0].args.tokens,
+        wei2rawtokens(txres.logs[0].args.investedWei, state.exchangeEthTokenRatio, 5).toString()
+    );
+    assert.equal(await token.balanceOf.call(actors.investor6), txres.logs[0].args.tokens.toString());
+    assert.equal(await token.availableSupply.call(), state.availableTokens.toString());
+
+    state.teamWalletBalance = state.teamWalletBalance.add(invest6);
+    assert.equal(web3.eth.getBalance(actors.teamWallet).toString(), state.teamWalletBalance.toString());
+  });
+
+  it('ICO lifecycle: invest (with 0% bonus, reach lowcap)', async () => {
+    const token = await ESRToken.deployed();
+    assert.isTrue(Ico != null);
+    const ico = Ico!!;
+
+    assert.equal(await ico.state.call(), ICOState.Active);
+
+    // Check link
+    assert.equal(await token.ico.call(), ico.address);
+    assert.equal(await ico.token.call(), token.address);
+
+    // tuning ICO: set low soft capacity to make available to fill it
+    let txres = await ico.suspend({from: actors.owner});
+    assert.equal(txres.logs[0].event, 'ICOSuspended');
+    assert.equal(await ico.state.call(), ICOState.Suspended);
+
+    // only owner can tune
+    await assertEvmThrows(ico.tune(0, new BigNumber('65.5e21'), new BigNumber('66e21'), 0, 0, {from: actors.someone1}));
+    await ico.tune(0, new BigNumber('65.5e21'), new BigNumber('66e21'), 0, 0, {from: actors.owner});
+
+    // check that only low and hard cap changed
+    assert.equal(await ico.token.call(), token.address);
+    assert.equal(await ico.teamWallet.call(), actors.teamWallet);
+    assert.equal(await ico.lowCapTokens.call(), new BigNumber('65.5e21').toString());
+    assert.equal(await ico.hardCapTokens.call(), new BigNumber('66e21').toString());
+    assert.equal(await ico.lowCapTxWei.call(), new BigNumber('5e16').toString());
+    assert.equal(await ico.hardCapTxWei.call(), new BigNumber('1e30').toString());
+
+    assert.equal(await ico.state.call(), ICOState.Suspended);
+
+    txres = await ico.resume({from: actors.owner});
+    assert.equal(txres.logs[0].event, 'ICOResumed');
+    assert.equal(txres.logs[0].args.endAt, END_AT.toString());
+    assert.equal(txres.logs[0].args.lowCapTokens, new BigNumber('65.5e21').toString());
+    assert.equal(txres.logs[0].args.hardCapTokens, new BigNumber('66e21').toString());
+    assert.equal(txres.logs[0].args.lowCapTxWei, new BigNumber('5e16').toString());
+    assert.equal(txres.logs[0].args.hardCapTxWei, new BigNumber('1e30').toString());
+    assert.equal(await ico.state.call(), ICOState.Active);
+
+    let requiredTokens = new BigNumber(await ico.hardCapTokens.call()).sub(await ico.collectedTokens.call());
+    requiredTokens = requiredTokens.div(2);
+
+    await web3IncreaseTimeTo(BONUS_05_END_AT + 1);
+    // Perform investments (investor7)
+    let investor7Tokens = new BigNumber(0);
+    const balance = web3.eth.getBalance(actors.investor7);
+    assert.equal(balance.toString(), new BigNumber('100e18').toString());
+
+    // Check deny not white-listed addresses
+    const invest7 = tokens2wei(requiredTokens.div(ONE_TOKEN), state.exchangeEthTokenRatio, 0);
+    await assertEvmThrows(
+        ico.sendTransaction({
+                              value: invest7,
+                              from: actors.investor7
+                            })
+    );
+
+    // Add investor7 to white-list
+    await ico.whitelist(actors.investor7);
+    // Now it can buy tokens
+    state.availableTokens = state.availableTokens.sub(requiredTokens);
+    state.collectedTokens = state.collectedTokens.add(requiredTokens);
+    txres = await ico.sendTransaction({
+                                        value: invest7,
+                                        from: actors.investor7
+                                      });
+    state.sentWei = state.sentWei.add(invest7);
+    state.investor7Wei = state.investor7Wei.add(invest7);
+    assert.equal(txres.logs[0].event, 'ICOInvestment');
+    assert.equal(txres.logs[0].args.investedWei, invest7.toString());
+    assert.equal(txres.logs[0].args.bonusPct, 0);
+    assert.equal(
+        txres.logs[0].args.tokens,
+        wei2rawtokens(txres.logs[0].args.investedWei, state.exchangeEthTokenRatio, 0).toString()
+    );
+    investor7Tokens = investor7Tokens.add(txres.logs[0].args.tokens);
+    assert.equal(await token.balanceOf.call(actors.investor7), txres.logs[0].args.tokens.toString());
+    assert.equal(await token.balanceOf.call(actors.investor7), investor7Tokens.toString());
+    assert.equal(await token.availableSupply.call(), state.availableTokens.toString());
+
+    state.teamWalletBalance = state.teamWalletBalance.add(invest7);
+    assert.equal(web3.eth.getBalance(actors.teamWallet).toString(), state.teamWalletBalance.toString());
+
+    assert.equal(await ico.state.call(), ICOState.Active);
+  });
+
+  it('ICO lifecycle: complete (with 0% bonus, reach hardcap)', async () => {
+    const token = await ESRToken.deployed();
+    assert.isTrue(Ico != null);
+    const ico = Ico!!;
+
+    assert.equal(await ico.state.call(), ICOState.Active);
+
+    // Check link
+    assert.equal(await token.ico.call(), ico.address);
+    assert.equal(await ico.token.call(), token.address);
+
+    let requiredTokens = new BigNumber(await ico.hardCapTokens.call()).sub(await ico.collectedTokens.call());
+
+    // Perform investments (investor8)
+    let investor8Tokens = new BigNumber(0);
+    const balance = web3.eth.getBalance(actors.investor8);
+    assert.equal(balance.toString(), new BigNumber('100e18').toString());
+
+    // Check deny not white-listed addresses
+    const invest8 = tokens2wei(requiredTokens.div(ONE_TOKEN), state.exchangeEthTokenRatio, 0);
+    await assertEvmThrows(
+        ico.sendTransaction({
+                              value: invest8,
+                              from: actors.investor8
+                            })
+    );
+
+    // Add investor8 to white-list
+    await ico.whitelist(actors.investor8);
+    // Now it can buy tokens
+    state.availableTokens = state.availableTokens.sub(requiredTokens);
+    state.collectedTokens = state.collectedTokens.add(requiredTokens);
+    let txres = await ico.sendTransaction({
+                                            value: invest8,
+                                            from: actors.investor8
+                                          });
+    state.sentWei = state.sentWei.add(invest8);
+    state.investor8Wei = state.investor8Wei.add(invest8);
+    assert.equal(txres.logs[0].event, 'ICOInvestment');
+    assert.equal(txres.logs[0].args.investedWei, invest8.toString());
+    assert.equal(txres.logs[0].args.bonusPct, 0);
+    assert.equal(
+        txres.logs[0].args.tokens,
+        wei2rawtokens(txres.logs[0].args.investedWei, state.exchangeEthTokenRatio, 0).toString()
+    );
+    assert.equal(txres.logs[1].event, 'ICOCompleted');
+    assert.equal(txres.logs[1].args.collectedTokens, state.collectedTokens.toString());
+    investor8Tokens = investor8Tokens.add(txres.logs[0].args.tokens);
+    assert.equal(await token.balanceOf.call(actors.investor8), txres.logs[0].args.tokens.toString());
+    assert.equal(await token.balanceOf.call(actors.investor8), investor8Tokens.toString());
+    assert.equal(await token.availableSupply.call(), state.availableTokens.toString());
+
+    state.teamWalletBalance = state.teamWalletBalance.add(invest8);
+    assert.equal(web3.eth.getBalance(actors.teamWallet).toString(), state.teamWalletBalance.toString());
+
+    assert.equal(await ico.state.call(), ICOState.Completed);
+    assert.equal(await ico.collectedTokens.call(), state.collectedTokens.toString());
+
+    // Cannot invest anymore
+    await assertEvmThrows(
+        ico.sendTransaction({
+                              value: 1,
+                              from: actors.investor8
+                            })
+    );
+  });
+
+  it('should team wallet match invested funds after ICO', async () => {
+    assert.equal(
+        new BigNumber(web3.eth.getBalance(actors.teamWallet)).sub(state.teamWalletInitialBalance).toString(),
+        state.sentWei.toString()
+    );
+
+    assert.equal(state.investor1Wei
+                     .add(state.investor2Wei)
+                     .add(state.investor3Wei)
+                     .add(state.investor4Wei)
+                     .add(state.investor5Wei)
+                     .add(state.investor6Wei)
+                     .add(state.investor7Wei)
+                     .add(state.investor8Wei).toString(), state.sentWei.toString());
+  });
+
+  it('should be lockable token after special date', async () => {
+    const token = await ESRToken.deployed();
+    // Token locked
+    assert.equal(await token.locked.call(), true);
+    // Unlock allowed only for owner after 2019-10-01T00:00:00.000Z
+    await assertEvmThrows(token.unlock({from: actors.owner}));
+
+    await web3IncreaseTimeTo(TOKEN_UNLOCK_AT - Seconds.minutes(1));
+    await assertEvmThrows(token.unlock({from: actors.owner}));
+    await web3IncreaseTimeTo(TOKEN_UNLOCK_AT + 1);
+
+    // Unlock allowed only for owner
+    await assertEvmThrows(token.unlock({from: actors.someone1}));
+    let txres = await token.unlock({from: actors.owner});
+    assert.equal(txres.logs[0].event, 'Unlock');
+
+    // Token unlocked
+    assert.equal(await token.locked.call(), false);
+
+    // Lock allowed only for owner
+    await assertEvmThrows(token.lock({from: actors.someone1}));
+    txres = await token.lock({from: actors.owner});
+    assert.equal(txres.logs[0].event, 'Lock');
   });
 
   it('should token allow transfer', async () => {
@@ -360,5 +846,26 @@ contract('ESRContracts', function (accounts: string[]) {
 
     await token.lock({from: actors.owner});
     assert.equal(await token.locked.call(), true);
+  });
+
+  it('should be mintable token', async () => {
+    const token = await ESRToken.deployed();
+    // Mint allowed only for owner after 2020-06-01T00:00:00.000Z
+    await assertEvmThrows(token.mintToken(tokens(1), {from: actors.owner}));
+
+    await web3IncreaseTimeTo(MINT_UNLOCK_AT - Seconds.minutes(1));
+    await assertEvmThrows(token.mintToken(tokens(1), {from: actors.owner}));
+    await web3IncreaseTimeTo(MINT_UNLOCK_AT + 1);
+
+    // Mint allowed only for owner
+    await assertEvmThrows(token.mintToken(tokens(1), {from: actors.someone1}));
+    const mintedAmount = new BigNumber(tokens(1000));
+    let totalSupply = new BigNumber(await token.totalSupply.call());
+    let txres = await token.mintToken(mintedAmount.toString(), {from: actors.owner});
+    totalSupply = totalSupply.add(mintedAmount);
+    assert.equal(txres.logs[0].event, 'TokensMinted');
+    assert.equal(txres.logs[0].args.mintedAmount, mintedAmount.toString());
+    assert.equal(txres.logs[0].args.totalSupply, totalSupply.toString());
+    assert.equal(await token.totalSupply.call(), totalSupply.toString());
   });
 });

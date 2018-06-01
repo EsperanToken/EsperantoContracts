@@ -55,6 +55,12 @@ contract ESRToken is BaseICOMintableToken {
     require(block.timestamp >= 1590969600);
   }
 
+  modifier whenLocked() {
+    // Token transfers locked until: 2019-10-01T00:00:00.000Z
+    require(locked && block.timestamp >= 1569888000);
+    _;
+  }
+
   modifier whenNotLocked() {
     // Token transfers locked until: 2019-10-01T00:00:00.000Z
     require(!locked && block.timestamp >= 1569888000);
@@ -89,7 +95,7 @@ contract ESRToken is BaseICOMintableToken {
   }
 
   /**
-   * @dev Update ETH/Tokes
+   * @dev Update ETH/Token
    */
   function updateTokenExchangeRatio(uint ethTokenExchangeRatio_) public onlyOwner {
     ethTokenExchangeRatio = ethTokenExchangeRatio_;
