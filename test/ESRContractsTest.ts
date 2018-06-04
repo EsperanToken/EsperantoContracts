@@ -324,6 +324,7 @@ contract('ESRContracts', function (accounts: string[]) {
 
     state.teamWalletBalance = state.teamWalletBalance.add(invest1);
     assert.equal(web3.eth.getBalance(actors.teamWallet).toString(), state.teamWalletBalance.toString());
+    assert.equal(await ico.collectedTokens.call(), state.collectedTokens.toString());
 
     // Add investor2 to white-list
     await ico.whitelist(actors.investor2);
@@ -350,6 +351,7 @@ contract('ESRContracts', function (accounts: string[]) {
 
     state.teamWalletBalance = state.teamWalletBalance.add(invest2);
     assert.equal(web3.eth.getBalance(actors.teamWallet).toString(), state.teamWalletBalance.toString());
+    assert.equal(await ico.collectedTokens.call(), state.collectedTokens.toString());
   });
 
   it('ICO lifecycle: invest (with 10% bonus)', async () => {
@@ -404,6 +406,7 @@ contract('ESRContracts', function (accounts: string[]) {
 
     state.teamWalletBalance = state.teamWalletBalance.add(invest3);
     assert.equal(web3.eth.getBalance(actors.teamWallet).toString(), state.teamWalletBalance.toString());
+    assert.equal(await ico.collectedTokens.call(), state.collectedTokens.toString());
 
     // Tune ETH/Token ratio
     state.exchangeEthTokenRatio = new BigNumber(2000);
@@ -438,6 +441,7 @@ contract('ESRContracts', function (accounts: string[]) {
 
     state.teamWalletBalance = state.teamWalletBalance.add(invest4);
     assert.equal(web3.eth.getBalance(actors.teamWallet).toString(), state.teamWalletBalance.toString());
+    assert.equal(await ico.collectedTokens.call(), state.collectedTokens.toString());
   });
 
   it('ICO lifecycle: invest (with 5% bonus)', async () => {
@@ -492,6 +496,7 @@ contract('ESRContracts', function (accounts: string[]) {
 
     state.teamWalletBalance = state.teamWalletBalance.add(invest5);
     assert.equal(web3.eth.getBalance(actors.teamWallet).toString(), state.teamWalletBalance.toString());
+    assert.equal(await ico.collectedTokens.call(), state.collectedTokens.toString());
 
     // Tune ETH/Token ratio
     state.exchangeEthTokenRatio = new BigNumber(1000);
@@ -526,6 +531,7 @@ contract('ESRContracts', function (accounts: string[]) {
 
     state.teamWalletBalance = state.teamWalletBalance.add(invest6);
     assert.equal(web3.eth.getBalance(actors.teamWallet).toString(), state.teamWalletBalance.toString());
+    assert.equal(await ico.collectedTokens.call(), state.collectedTokens.toString());
   });
 
   it('ICO lifecycle: invest (with 0% bonus, reach lowcap)', async () => {
@@ -612,6 +618,7 @@ contract('ESRContracts', function (accounts: string[]) {
 
     state.teamWalletBalance = state.teamWalletBalance.add(invest7);
     assert.equal(web3.eth.getBalance(actors.teamWallet).toString(), state.teamWalletBalance.toString());
+    assert.equal(await ico.collectedTokens.call(), state.collectedTokens.toString());
 
     assert.equal(await ico.state.call(), ICOState.Active);
   });
