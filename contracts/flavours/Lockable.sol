@@ -32,9 +32,16 @@ contract Lockable is Ownable {
     }
 
     /**
+     * @dev Called before lock/unlock completed
+     */
+    modifier preLockUnlock() {
+      _;
+    }
+
+    /**
      * @dev called by the owner to locke, triggers locked state
      */
-    function lock() public onlyOwner whenNotLocked {
+    function lock() public onlyOwner whenNotLocked preLockUnlock {
         locked = true;
         emit Lock();
     }
@@ -43,7 +50,7 @@ contract Lockable is Ownable {
      * @dev called by the owner
      *      to unlock, returns to unlocked state
      */
-    function unlock() public onlyOwner whenLocked {
+    function unlock() public onlyOwner whenLocked preLockUnlock {
         locked = false;
         emit Unlock();
     }

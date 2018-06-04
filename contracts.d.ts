@@ -257,12 +257,12 @@ interface IBaseICO extends IContractInstance, IOwnable, IWhitelisted {
    * @param hardCapTxWei Hard limit for ICO per transaction
    */
   tune(
-      endAt: NumberLike,
-      lowCapTokens: NumberLike,
-      hardCapTokens: NumberLike,
-      lowCapTxWei: NumberLike,
-      hardCapTxWei: NumberLike,
-      tr?: Web3.TransactionRequest
+    endAt: NumberLike,
+    lowCapTokens: NumberLike,
+    hardCapTokens: NumberLike,
+    lowCapTxWei: NumberLike,
+    hardCapTxWei: NumberLike,
+    tr?: Web3.TransactionRequest
   ): Promise<ITXResult>;
 
   /**
@@ -280,7 +280,6 @@ interface IBaseICO extends IContractInstance, IOwnable, IWhitelisted {
    * Buy tokens. (payable)
    */
   buyTokens(tr?: Web3.TransactionRequest): Promise<ITXResult>;
-
 }
 
 /**

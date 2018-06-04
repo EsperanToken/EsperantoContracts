@@ -152,7 +152,7 @@ contract('ESRContracts', function (accounts: string[]) {
     assert.equal(txres.logs[0].args.newOwner, actors.owner);
   });
 
-  it('should be not payable token', async () => {
+  it('should be not be payable token', async () => {
     const token = await ESRToken.deployed();
     await assertEvmThrows(token.sendTransaction({ value: tokens(1), from: actors.owner }));
     await assertEvmThrows(token.sendTransaction({ value: tokens(1), from: actors.someone1 }));
@@ -545,7 +545,9 @@ contract('ESRContracts', function (accounts: string[]) {
     assert.equal(await ico.state.call(), ICOState.Suspended);
 
     // only owner can tune
-    await assertEvmThrows(ico.tune(0, new BigNumber('65.5e21'), new BigNumber('66e21'), 0, 0, { from: actors.someone1 }));
+    await assertEvmThrows(ico.tune(0,
+      new BigNumber('65.5e21'),
+      new BigNumber('66e21'), 0, 0, { from: actors.someone1 }));
     await ico.tune(0, new BigNumber('65.5e21'), new BigNumber('66e21'), 0, 0, { from: actors.owner });
 
     // check that only low and hard cap changed
