@@ -105,6 +105,7 @@ contract ESRToken is BaseICOMintableToken {
    */
   function sellToken(address to_, uint amountWei_) public onlyOwner returns (uint)  {
     uint amount = amountWei_ * ethTokenExchangeRatio;
+    require(to_ != address(0) && amount <= availableSupply);
     availableSupply = availableSupply.sub(amount);
     balances[to_] = balances[to_].add(amount);
     emit SellToken(to_, amount);

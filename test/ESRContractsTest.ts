@@ -224,6 +224,30 @@ contract('ESRContracts', function (accounts: string[]) {
     );
   });
 
+  it('should allow sell tokens via fiat before ICO', async () => {
+    const token = await ESRToken.deployed();
+
+    // Token is not controlled by any ICO
+    assert.equal(await token.ico.call(), '0x0000000000000000000000000000000000000000');
+
+    // Perform investments (investor1)
+    let investor1Tokens = new BigNumber(0);
+    const invest1 = tokens2wei(7200, state.exchangeEthTokenRatio, 0);
+
+    state.availableTokens = state.availableTokens.sub(tokens(7200));
+    let txres = await token.sellToken(actors.investor1, invest1, {from: actors.owner});
+    assert.equal(txres.logs[0].event, 'SellToken');
+    assert.equal(txres.logs[0].args.to, actors.investor1);
+    assert.equal(
+        txres.logs[0].args.amount,
+        wei2rawtokens(invest1, state.exchangeEthTokenRatio, 0).toString()
+    );
+    investor1Tokens = investor1Tokens.add(tokens(7200));
+    assert.equal(await token.balanceOf.call(actors.investor1), txres.logs[0].args.amount.toString());
+    assert.equal(await token.balanceOf.call(actors.investor1), investor1Tokens.toString());
+    assert.equal(await token.availableSupply.call(), state.availableTokens.toString());
+  });
+
   it('should ico contract deployed', async () => {
     const token = await ESRToken.deployed();
     Ico = await ESRTICO.new(
@@ -286,7 +310,7 @@ contract('ESRContracts', function (accounts: string[]) {
     assert.equal(await ico.token.call(), token.address);
 
     // Perform investments (investor1)
-    let investor1Tokens = new BigNumber(0);
+    let investor1Tokens = new BigNumber(await token.balanceOf.call(actors.investor1));
     const balance = web3.eth.getBalance(actors.investor1);
     assert.equal(balance.toString(), new BigNumber('100e18').toString());
 
@@ -318,7 +342,6 @@ contract('ESRContracts', function (accounts: string[]) {
       wei2rawtokens(txres.logs[0].args.investedWei, state.exchangeEthTokenRatio, 20).toString()
     );
     investor1Tokens = investor1Tokens.add(txres.logs[0].args.tokens);
-    assert.equal(await token.balanceOf.call(actors.investor1), txres.logs[0].args.tokens.toString());
     assert.equal(await token.balanceOf.call(actors.investor1), investor1Tokens.toString());
     assert.equal(await token.availableSupply.call(), state.availableTokens.toString());
 
@@ -354,6 +377,27 @@ contract('ESRContracts', function (accounts: string[]) {
     assert.equal(await ico.collectedTokens.call(), state.collectedTokens.toString());
   });
 
+  it('should allow sell tokens via fiat during ICO', async () => {
+    const token = await ESRToken.deployed();
+
+    // Perform investments (investor3)
+    let investor3Tokens = new BigNumber(0);
+    const invest3 = tokens2wei(9900, state.exchangeEthTokenRatio, 0);
+
+    state.availableTokens = state.availableTokens.sub(tokens(9900));
+    let txres = await token.sellToken(actors.investor3, invest3, {from: actors.owner});
+    assert.equal(txres.logs[0].event, 'SellToken');
+    assert.equal(txres.logs[0].args.to, actors.investor3);
+    assert.equal(
+        txres.logs[0].args.amount,
+        wei2rawtokens(invest3, state.exchangeEthTokenRatio, 0).toString()
+    );
+    investor3Tokens = investor3Tokens.add(tokens(9900));
+    assert.equal(await token.balanceOf.call(actors.investor3), txres.logs[0].args.amount.toString());
+    assert.equal(await token.balanceOf.call(actors.investor3), investor3Tokens.toString());
+    assert.equal(await token.availableSupply.call(), state.availableTokens.toString());
+  });
+
   it('ICO lifecycle: invest (with 10% bonus)', async () => {
     const token = await ESRToken.deployed();
     assert.isTrue(Ico != null);
@@ -368,7 +412,7 @@ contract('ESRContracts', function (accounts: string[]) {
     await web3IncreaseTimeTo(BONUS_20_END_AT + 1);
 
     // Perform investments (investor3)
-    let investor3Tokens = new BigNumber(0);
+    let investor3Tokens = new BigNumber(await token.balanceOf.call(actors.investor3));
     const balance = web3.eth.getBalance(actors.investor3);
     assert.equal(balance.toString(), new BigNumber('100e18').toString());
 
@@ -400,7 +444,6 @@ contract('ESRContracts', function (accounts: string[]) {
       wei2rawtokens(txres.logs[0].args.investedWei, state.exchangeEthTokenRatio, 10).toString()
     );
     investor3Tokens = investor3Tokens.add(txres.logs[0].args.tokens);
-    assert.equal(await token.balanceOf.call(actors.investor3), txres.logs[0].args.tokens.toString());
     assert.equal(await token.balanceOf.call(actors.investor3), investor3Tokens.toString());
     assert.equal(await token.availableSupply.call(), state.availableTokens.toString());
 
@@ -688,6 +731,26 @@ contract('ESRContracts', function (accounts: string[]) {
         from: actors.investor8
       })
     );
+  });
+
+  it('should allow sell tokens via fiat after ICO', async () => {
+    const token = await ESRToken.deployed();
+
+    // Perform investments (investor8)
+    let investor8Tokens = new BigNumber(await token.balanceOf.call(actors.investor8));
+    const invest8 = tokens2wei(9900, state.exchangeEthTokenRatio, 0);
+
+    state.availableTokens = state.availableTokens.sub(tokens(9900));
+    let txres = await token.sellToken(actors.investor8, invest8, {from: actors.owner});
+    assert.equal(txres.logs[0].event, 'SellToken');
+    assert.equal(txres.logs[0].args.to, actors.investor8);
+    assert.equal(
+        txres.logs[0].args.amount,
+        wei2rawtokens(invest8, state.exchangeEthTokenRatio, 0).toString()
+    );
+    investor8Tokens = investor8Tokens.add(tokens(9900));
+    assert.equal(await token.balanceOf.call(actors.investor8), investor8Tokens.toString());
+    assert.equal(await token.availableSupply.call(), state.availableTokens.toString());
   });
 
   it('should team wallet match invested funds after ICO', async () => {
