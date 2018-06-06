@@ -31,6 +31,9 @@ contract ESRToken is BaseICOMintableToken {
   /// @dev Fired if token exchange ratio updated
   event EthTokenExchangeRatioUpdated(uint ethTokenExchangeRatio);
 
+  /// @dev Token sell event
+  event SellToken(address indexed to, uint amount);
+
   /// @dev Token reservation mapping: key(RESERVED_X) => value(number of tokens)
   mapping(uint8 => uint) public reserved;
 
@@ -94,6 +97,18 @@ contract ESRToken is BaseICOMintableToken {
   function updateTokenExchangeRatio(uint ethTokenExchangeRatio_) public onlyOwner {
     ethTokenExchangeRatio = ethTokenExchangeRatio_;
     emit EthTokenExchangeRatioUpdated(ethTokenExchangeRatio);
+  }
+
+
+  /**
+   * @dev Register token sell
+   */
+  function sellToken(address to_, uint amountWei_) public onlyOwner returns (uint)  {
+    uint amount = amountWei_ * ethTokenExchangeRatio;
+    availableSupply = availableSupply.sub(amount);
+    balances[to_] = balances[to_].add(amount);
+    emit SellToken(to_, amount);
+    return amount;
   }
 
   /**
