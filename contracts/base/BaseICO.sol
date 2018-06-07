@@ -97,7 +97,7 @@ contract BaseICO is Ownable, Whitelisted {
   /**
    * @dev Suspend this ICO.
    * ICO can be activated later by calling `resume()` function.
-   * In suspend state, ICO owner can change basic ICO paraneter using `tune()` function,
+   * In suspend state, ICO owner can change basic ICO parameter using `tune()` function,
    * tokens cannot be distributed among investors.
    */
   function suspend() onlyOwner isActive public {
@@ -118,7 +118,7 @@ contract BaseICO is Ownable, Whitelisted {
   }
 
   /**
-   * @dev Change basic ICO paraneters. Can be done only during `Suspended` state.
+   * @dev Change basic ICO parameters. Can be done only during `Suspended` state.
    * Any provided parameter is used only if it is not zero.
    * @param endAt_ ICO end date seconds since epoch. Used if it is not zero.
    * @param lowCapTokens_ ICO low capacity. Used if it is not zero.
@@ -132,6 +132,7 @@ contract BaseICO is Ownable, Whitelisted {
                 uint lowCapTxWei_,
                 uint hardCapTxWei_) onlyOwner isSuspended public {
     if (endAt_ > block.timestamp) {
+      require(endAtCheck(endAt_));
       endAt = endAt_;
     }
     if (lowCapTokens_ > 0) {
@@ -148,6 +149,14 @@ contract BaseICO is Ownable, Whitelisted {
     }
     require(lowCapTokens <= hardCapTokens && lowCapTxWei <= hardCapTxWei);
     touch();
+  }
+
+  /**
+   * @dev Additional limitations for new endAt value
+   */
+  function endAtCheck(uint) internal returns (bool) {
+    // dummy
+    return true;
   }
 
   /**

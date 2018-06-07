@@ -14,6 +14,8 @@ contract ESRTICO is BaseICO {
 
   bool internal lowCapChecked = false;
 
+  uint public lastStageStartAt = 1554076800; //  2019-04-01T00:00:00.000Z
+
   constructor(address icoToken_,
               address teamWallet_) public {
     require(icoToken_ != address(0) && teamWallet_ != address(0));
@@ -44,7 +46,7 @@ contract ESRTICO is BaseICO {
       state = State.Completed;
       endAt = block.timestamp;
       emit ICOCompleted(collectedTokens);
-    } else if (!lowCapChecked && block.timestamp >= 1554076800) { //  2019-04-01T00:00:00.000Z
+    } else if (!lowCapChecked && block.timestamp >= lastStageStartAt) {
       lowCapChecked = true;
       if (collectedTokens < lowCapTokens) {
         state = State.NotCompleted;
@@ -56,12 +58,33 @@ contract ESRTICO is BaseICO {
     }
   }
 
+  /**
+   * @dev Change ICO bonus 0 stage start date. Can be done only during `Suspended` state.
+   * @param lastStageStartAt_ seconds since epoch. Used if it is not zero.
+   */
+  function tuneLastStageStartAt(uint lastStageStartAt_) onlyOwner isSuspended public {
+    if (lastStageStartAt_ > block.timestamp) {
+      // New value must be less than current
+      require(lastStageStartAt_ < lastStageStartAt);
+      lastStageStartAt = lastStageStartAt_;
+    }
+    touch();
+  }
+
+  /**
+   * @dev Additional limitations for new endAt value
+   */
+  function endAtCheck(uint endAt_) internal returns (bool) {
+    // New value must be less than current
+    return endAt_ < endAt;
+  }
+
   function computeBonus() internal view returns (uint8) {
     if (block.timestamp < 1538352000) { // 2018-10-01T00:00:00.000Z
       return 20;
     } else if (block.timestamp < 1546300800) { // 2019-01-01T00:00:00.000Z
       return 10;
-    } else if (block.timestamp < 1554076800) { // 2019-04-01T00:00:00.000Z
+    } else if (block.timestamp < lastStageStartAt) {
       return 5;
     } else {
       return 0;

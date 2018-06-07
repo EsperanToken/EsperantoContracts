@@ -334,4 +334,10 @@ interface IESRTICO extends IBaseICO {
 
   // Total number of assigned tokens
   collectedTokens: ISimpleCallable<NumberLike>;
+
+  /**
+   * @dev Change ICO bonus 0 stage start date. Can be done only during `Suspended` state.
+   * @param lastStageStartAt_ seconds since epoch. Used if it is not zero.
+   */
+  tuneLastStageStartAt(lastStageStartAt_ : NumberLike, tr?: Web3.TransactionRequest): Promise<ITXResult>;
 }

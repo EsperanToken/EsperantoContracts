@@ -16,8 +16,8 @@ const ESRTICO = artifacts.require('./ESRTICO.sol');
 const ONE_TOKEN = new BigNumber('1e18');
 const BONUS_20_END_AT = 1538352000; // 2018-10-01T00:00:00.000Z
 const BONUS_10_END_AT = 1546300800; // 2019-01-01T00:00:00.000Z
-const BONUS_05_END_AT = 1554076800; // 2019-04-01T00:00:00.000Z
-const END_AT = 1559347200; // 2019-06-01T00:00:00.000Z
+let BONUS_05_END_AT = 1554076800; // 2019-04-01T00:00:00.000Z
+let END_AT = 1559347200; // 2019-06-01T00:00:00.000Z
 const TOKEN_UNLOCK_AT = 1569888000; // 2019-10-01T00:00:00.000Z
 const MINT_UNLOCK_AT = 1590969600; // 2020-06-01T00:00:00.000Z
 
@@ -541,6 +541,27 @@ contract('ESRContracts', function (accounts: string[]) {
     assert.equal(web3.eth.getBalance(actors.teamWallet).toString(), state.teamWalletBalance.toString());
     assert.equal(await ico.collectedTokens.call(), state.collectedTokens.toString());
 
+    // tuning ICO: set new BONUS_05_END_AT date
+    txres = await ico.suspend({ from: actors.owner });
+    assert.equal(txres.logs[0].event, 'ICOSuspended');
+    assert.equal(await ico.state.call(), ICOState.Suspended);
+
+    // only owner can tune
+    await assertEvmThrows(ico.tuneLastStageStartAt(0, {from: actors.someone1}));
+    // new date must be smaller than current
+    await assertEvmThrows(ico.tuneLastStageStartAt(BONUS_05_END_AT + 1, {from: actors.owner}));
+    await ico.tuneLastStageStartAt(BONUS_05_END_AT - Seconds.hours(1), {from: actors.owner});
+    BONUS_05_END_AT = BONUS_05_END_AT - Seconds.hours(1);
+
+    txres = await ico.resume({ from: actors.owner });
+    assert.equal(txres.logs[0].event, 'ICOResumed');
+    assert.equal(txres.logs[0].args.endAt, END_AT.toString());
+    assert.equal(txres.logs[0].args.lowCapTokens, new BigNumber('15e23').toString());
+    assert.equal(txres.logs[0].args.hardCapTokens, new BigNumber('60e24').toString());
+    assert.equal(txres.logs[0].args.lowCapTxWei, new BigNumber('5e16').toString());
+    assert.equal(txres.logs[0].args.hardCapTxWei, new BigNumber('1e30').toString());
+    assert.equal(await ico.state.call(), ICOState.Active);
+
     // Tune ETH/Token ratio
     state.exchangeEthTokenRatio = new BigNumber(1000);
     txres = await token.updateTokenExchangeRatio(state.exchangeEthTokenRatio.toString(), { from: actors.owner });
@@ -597,9 +618,11 @@ contract('ESRContracts', function (accounts: string[]) {
     await assertEvmThrows(ico.tune(0,
       new BigNumber('65.5e21'),
       new BigNumber('66e21'), 0, 0, { from: actors.someone1 }));
-    await ico.tune(0, new BigNumber('65.5e21'), new BigNumber('66e21'), 0, 0, { from: actors.owner });
+    await ico.tune(END_AT - Seconds.hours(1),
+      new BigNumber('65.5e21'),
+      new BigNumber('66e21'), 0, 0, { from: actors.owner });
 
-    // check that only low and hard cap changed
+    // check that end date, low and hard cap changed
     assert.equal(await ico.token.call(), token.address);
     assert.equal(await ico.teamWallet.call(), actors.teamWallet);
     assert.equal(await ico.lowCapTokens.call(), new BigNumber('65.5e21').toString());
@@ -611,12 +634,13 @@ contract('ESRContracts', function (accounts: string[]) {
 
     txres = await ico.resume({ from: actors.owner });
     assert.equal(txres.logs[0].event, 'ICOResumed');
-    assert.equal(txres.logs[0].args.endAt, END_AT.toString());
+    assert.equal(txres.logs[0].args.endAt, (END_AT - Seconds.hours(1)).toString());
     assert.equal(txres.logs[0].args.lowCapTokens, new BigNumber('65.5e21').toString());
     assert.equal(txres.logs[0].args.hardCapTokens, new BigNumber('66e21').toString());
     assert.equal(txres.logs[0].args.lowCapTxWei, new BigNumber('5e16').toString());
     assert.equal(txres.logs[0].args.hardCapTxWei, new BigNumber('1e30').toString());
     assert.equal(await ico.state.call(), ICOState.Active);
+    END_AT = END_AT - Seconds.hours(1);
 
     let requiredTokens = new BigNumber(await ico.hardCapTokens.call()).sub(await ico.collectedTokens.call());
     requiredTokens = requiredTokens.div(2);
