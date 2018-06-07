@@ -339,5 +339,5 @@ interface IESRTICO extends IBaseICO {
    * @dev Change ICO bonus 0 stage start date. Can be done only during `Suspended` state.
    * @param lastStageStartAt seconds since epoch. Used if it is not zero.
    */
-  tuneLastStageStartAt(lastStageStartAt : NumberLike, tr?: Web3.TransactionRequest): Promise<ITXResult>;
+  tuneLastStageStartAt(lastStageStartAt: NumberLike, tr?: Web3.TransactionRequest): Promise<ITXResult>;
 }
