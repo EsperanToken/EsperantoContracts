@@ -552,6 +552,7 @@ contract('ESRContracts', function (accounts: string[]) {
     await assertEvmThrows(ico.tuneLastStageStartAt(BONUS_05_END_AT + 1, {from: actors.owner}));
     await ico.tuneLastStageStartAt(BONUS_05_END_AT - Seconds.hours(1), {from: actors.owner});
     BONUS_05_END_AT = BONUS_05_END_AT - Seconds.hours(1);
+    assert.equal(await ico.lastStageStartAt.call(), BONUS_05_END_AT);
 
     txres = await ico.resume({ from: actors.owner });
     assert.equal(txres.logs[0].event, 'ICOResumed');
@@ -641,6 +642,7 @@ contract('ESRContracts', function (accounts: string[]) {
     assert.equal(txres.logs[0].args.hardCapTxWei, new BigNumber('1e30').toString());
     assert.equal(await ico.state.call(), ICOState.Active);
     END_AT = END_AT - Seconds.hours(1);
+    assert.equal(await ico.endAt.call(), END_AT);
 
     let requiredTokens = new BigNumber(await ico.hardCapTokens.call()).sub(await ico.collectedTokens.call());
     requiredTokens = requiredTokens.div(2);
