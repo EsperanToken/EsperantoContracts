@@ -59,4 +59,12 @@ contract BaseICOToken is BaseFixedERC20Token {
      * @return Amount of invested tokens
      */
     function icoInvestmentWei(address to_, uint amountWei_) public returns (uint);
+
+    /**
+     * @dev Assign `amount_` of privately distributed tokens from bounty group
+     *      to someone identified with `to_` address.
+     * @param to_   Tokens owner
+     * @param amount_ Number of tokens distributed with decimals part
+     */
+    function icoAssignReservedBounty(address to_, uint amount_) public;
 }

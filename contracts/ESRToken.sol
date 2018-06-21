@@ -77,6 +77,16 @@ contract ESRToken is BaseICOMintableToken {
   }
 
   /**
+   * @dev Assign `amount_` of privately distributed tokens from bounty group
+   *      to someone identified with `to_` address.
+   * @param to_   Tokens owner
+   * @param amount_ Number of tokens distributed with decimals part
+   */
+  function icoAssignReservedBounty(address to_, uint amount_) public onlyICO {
+    assignReservedTokens(to_, RESERVED_BOUNTY_GROUP, amount_);
+  }
+
+  /**
    * @dev Assign `amount_` of privately distributed tokens
    *      to someone identified with `to_` address.
    * @param to_   Tokens owner
@@ -84,6 +94,17 @@ contract ESRToken is BaseICOMintableToken {
    * @param amount_ Number of tokens distributed with decimals part
    */
   function assignReserved(address to_, uint8 group_, uint amount_) public onlyOwner {
+      assignReservedTokens(to_, group_, amount_);
+  }
+
+  /**
+   * @dev Assign `amount_` of privately distributed tokens
+   *      to someone identified with `to_` address.
+   * @param to_   Tokens owner
+   * @param group_ Group identifier of privately distributed tokens
+   * @param amount_ Number of tokens distributed with decimals part
+   */
+  function assignReservedTokens(address to_, uint8 group_, uint amount_) internal {
       require(to_ != address(0) && (group_ & 0x7) != 0);
       // SafeMath will check reserved[group_] >= amount
       reserved[group_] = reserved[group_].sub(amount_);
@@ -103,11 +124,11 @@ contract ESRToken is BaseICOMintableToken {
   /**
    * @dev Register token sell
    */
-  function sellToken(address to_, uint amountWei_) public onlyOwner returns (uint)  {
-    uint amount = amountWei_ * ethTokenExchangeRatio;
+  function sellToken(address to_, uint amount, uint bonusAmount) public onlyOwner returns (uint)  {
     require(to_ != address(0) && amount <= availableSupply);
     availableSupply = availableSupply.sub(amount);
     balances[to_] = balances[to_].add(amount);
+    assignReservedTokens(to_, RESERVED_BOUNTY_GROUP, bonusAmount);
     emit SellToken(to_, amount);
     return amount;
   }

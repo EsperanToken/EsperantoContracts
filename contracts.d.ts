@@ -321,8 +321,9 @@ interface IESRToken extends IBaseICOMintableToken {
    * Sell (as fiat) `amount` of tokens to someone identified with `to` address
    * @param to   Tokens owner
    * @param amount Number of tokens distributed
+   * @param bonusAmount Number of bounty tokens distributed
    */
-  sellToken(to: address, amount: NumberLike, tr?: Web3.TransactionRequest): Promise<ITXResult>;
+  sellToken(to: address, amount: NumberLike, bonusAmount: NumberLike, tr?: Web3.TransactionRequest): Promise<ITXResult>;
 }
 
 /**

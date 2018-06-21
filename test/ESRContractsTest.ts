@@ -231,20 +231,22 @@ contract('ESRContracts', function (accounts: string[]) {
     assert.equal(await token.ico.call(), '0x0000000000000000000000000000000000000000');
 
     // Perform investments (investor1)
-    let investor1Tokens = new BigNumber(0);
-    const invest1 = tokens2wei(7200, state.exchangeEthTokenRatio, 0);
-
     state.availableTokens = state.availableTokens.sub(tokens(7200));
-    let txres = await token.sellToken(actors.investor1, invest1, {from: actors.owner});
-    assert.equal(txres.logs[0].event, 'SellToken');
+    const txres = await token.sellToken(actors.investor1, tokens(7200), tokens(2000), {from: actors.owner});
+    assert.equal(txres.logs[0].event, 'ReservedTokensDistributed');
     assert.equal(txres.logs[0].args.to, actors.investor1);
+    assert.equal(txres.logs[0].args.group, TokenReservation.Bounty);
     assert.equal(
         txres.logs[0].args.amount,
-        wei2rawtokens(invest1, state.exchangeEthTokenRatio, 0).toString()
+        wei2rawtokens(tokens(2000), 1, 0).toString()
     );
-    investor1Tokens = investor1Tokens.add(tokens(7200));
-    assert.equal(await token.balanceOf.call(actors.investor1), txres.logs[0].args.amount.toString());
-    assert.equal(await token.balanceOf.call(actors.investor1), investor1Tokens.toString());
+    assert.equal(txres.logs[1].event, 'SellToken');
+    assert.equal(txres.logs[1].args.to, actors.investor1);
+    assert.equal(
+        txres.logs[1].args.amount,
+        wei2rawtokens(tokens(7200), 1, 0).toString()
+    );
+    assert.equal(await token.balanceOf.call(actors.investor1), tokens(7200 + 2000));
     assert.equal(await token.availableSupply.call(), state.availableTokens.toString());
   });
 
@@ -326,8 +328,8 @@ contract('ESRContracts', function (accounts: string[]) {
     // Add investor1 to white-list
     await ico.whitelist(actors.investor1);
     // Now it can buy tokens
-    state.availableTokens = state.availableTokens.sub(tokens(7200));
-    state.collectedTokens = state.collectedTokens.add(tokens(7200));
+    state.availableTokens = state.availableTokens.sub(tokens(7200 * 100 / 120)); // 7200 - 20%
+    state.collectedTokens = state.collectedTokens.add(tokens(7200 * 100 / 120));
     let txres = await ico.sendTransaction({
       value: invest1,
       from: actors.investor1
@@ -351,8 +353,8 @@ contract('ESRContracts', function (accounts: string[]) {
 
     // Add investor2 to white-list
     await ico.whitelist(actors.investor2);
-    state.availableTokens = state.availableTokens.sub(tokens(14400));
-    state.collectedTokens = state.collectedTokens.add(tokens(14400));
+    state.availableTokens = state.availableTokens.sub(tokens(14400 * 100 / 120)); // 14400 - 20%
+    state.collectedTokens = state.collectedTokens.add(tokens(14400 * 100 / 120));
     const invest2 = tokens2wei(14400, state.exchangeEthTokenRatio, 20);
 
     await web3IncreaseTimeTo(BONUS_20_END_AT - Seconds.minutes(1));
@@ -381,20 +383,22 @@ contract('ESRContracts', function (accounts: string[]) {
     const token = await ESRToken.deployed();
 
     // Perform investments (investor3)
-    let investor3Tokens = new BigNumber(0);
-    const invest3 = tokens2wei(9900, state.exchangeEthTokenRatio, 0);
-
     state.availableTokens = state.availableTokens.sub(tokens(9900));
-    let txres = await token.sellToken(actors.investor3, invest3, {from: actors.owner});
-    assert.equal(txres.logs[0].event, 'SellToken');
+    const txres = await token.sellToken(actors.investor3, tokens(9900), tokens(1000), {from: actors.owner});
+    assert.equal(txres.logs[0].event, 'ReservedTokensDistributed');
     assert.equal(txres.logs[0].args.to, actors.investor3);
+    assert.equal(txres.logs[0].args.group, TokenReservation.Bounty);
     assert.equal(
         txres.logs[0].args.amount,
-        wei2rawtokens(invest3, state.exchangeEthTokenRatio, 0).toString()
+        wei2rawtokens(tokens(1000), 1, 0).toString()
     );
-    investor3Tokens = investor3Tokens.add(tokens(9900));
-    assert.equal(await token.balanceOf.call(actors.investor3), txres.logs[0].args.amount.toString());
-    assert.equal(await token.balanceOf.call(actors.investor3), investor3Tokens.toString());
+    assert.equal(txres.logs[1].event, 'SellToken');
+    assert.equal(txres.logs[1].args.to, actors.investor3);
+    assert.equal(
+        txres.logs[1].args.amount,
+        wei2rawtokens(tokens(9900), 1, 0).toString()
+    );
+    assert.equal(await token.balanceOf.call(actors.investor3), tokens(9900 + 1000));
     assert.equal(await token.availableSupply.call(), state.availableTokens.toString());
   });
 
@@ -428,8 +432,8 @@ contract('ESRContracts', function (accounts: string[]) {
     // Add investor3 to white-list
     await ico.whitelist(actors.investor3);
     // Now it can buy tokens
-    state.availableTokens = state.availableTokens.sub(tokens(9900));
-    state.collectedTokens = state.collectedTokens.add(tokens(9900));
+    state.availableTokens = state.availableTokens.sub(tokens(9900 * 100 / 110)); // 9900 - 10%
+    state.collectedTokens = state.collectedTokens.add(tokens(9900 * 100 / 110));
     let txres = await ico.sendTransaction({
       value: invest3,
       from: actors.investor3
@@ -462,8 +466,8 @@ contract('ESRContracts', function (accounts: string[]) {
 
     // Add investor4 to white-list
     await ico.whitelist(actors.investor4);
-    state.availableTokens = state.availableTokens.sub(tokens(6600));
-    state.collectedTokens = state.collectedTokens.add(tokens(6600));
+    state.availableTokens = state.availableTokens.sub(tokens(6600 * 100 / 110)); // 6600 - 10%
+    state.collectedTokens = state.collectedTokens.add(tokens(6600 * 100 / 110));
     const invest4 = tokens2wei(6600, state.exchangeEthTokenRatio, 10);
     await web3IncreaseTimeTo(BONUS_10_END_AT - Seconds.minutes(1));
     txres = await ico.buyTokens({
@@ -517,8 +521,8 @@ contract('ESRContracts', function (accounts: string[]) {
     // Add investor5 to white-list
     await ico.whitelist(actors.investor5);
     // Now it can buy tokens
-    state.availableTokens = state.availableTokens.sub(tokens(6300));
-    state.collectedTokens = state.collectedTokens.add(tokens(6300));
+    state.availableTokens = state.availableTokens.sub(tokens(6300 * 100 / 105)); // 6300 - 5%
+    state.collectedTokens = state.collectedTokens.add(tokens(6300 * 100 / 105));
     let txres = await ico.sendTransaction({
       value: invest5,
       from: actors.investor5
@@ -574,8 +578,8 @@ contract('ESRContracts', function (accounts: string[]) {
 
     // Add investor6 to white-list
     await ico.whitelist(actors.investor6);
-    state.availableTokens = state.availableTokens.sub(tokens(21000));
-    state.collectedTokens = state.collectedTokens.add(tokens(21000));
+    state.availableTokens = state.availableTokens.sub(tokens(21000 * 100 / 105)); // 21000 - 5%
+    state.collectedTokens = state.collectedTokens.add(tokens(21000 * 100 / 105));
     const invest6 = tokens2wei(21000, state.exchangeEthTokenRatio, 5);
     await web3IncreaseTimeTo(BONUS_05_END_AT - Seconds.minutes(1));
     txres = await ico.buyTokens({
@@ -617,16 +621,16 @@ contract('ESRContracts', function (accounts: string[]) {
 
     // only owner can tune
     await assertEvmThrows(ico.tune(0,
-      new BigNumber('65.5e21'),
+      new BigNumber('62.4e21'),
       new BigNumber('66e21'), 0, 0, { from: actors.someone1 }));
     await ico.tune(END_AT - Seconds.hours(1),
-      new BigNumber('65.5e21'),
+      new BigNumber('62.4e21'),
       new BigNumber('66e21'), 0, 0, { from: actors.owner });
 
     // check that end date, low and hard cap changed
     assert.equal(await ico.token.call(), token.address);
     assert.equal(await ico.teamWallet.call(), actors.teamWallet);
-    assert.equal(await ico.lowCapTokens.call(), new BigNumber('65.5e21').toString());
+    assert.equal(await ico.lowCapTokens.call(), new BigNumber('62.4e21').toString());
     assert.equal(await ico.hardCapTokens.call(), new BigNumber('66e21').toString());
     assert.equal(await ico.lowCapTxWei.call(), new BigNumber('5e16').toString());
     assert.equal(await ico.hardCapTxWei.call(), new BigNumber('1e30').toString());
@@ -636,7 +640,7 @@ contract('ESRContracts', function (accounts: string[]) {
     txres = await ico.resume({ from: actors.owner });
     assert.equal(txres.logs[0].event, 'ICOResumed');
     assert.equal(txres.logs[0].args.endAt, (END_AT - Seconds.hours(1)).toString());
-    assert.equal(txres.logs[0].args.lowCapTokens, new BigNumber('65.5e21').toString());
+    assert.equal(txres.logs[0].args.lowCapTokens, new BigNumber('62.4e21').toString());
     assert.equal(txres.logs[0].args.hardCapTokens, new BigNumber('66e21').toString());
     assert.equal(txres.logs[0].args.lowCapTxWei, new BigNumber('5e16').toString());
     assert.equal(txres.logs[0].args.hardCapTxWei, new BigNumber('1e30').toString());
@@ -764,15 +768,21 @@ contract('ESRContracts', function (accounts: string[]) {
 
     // Perform investments (investor8)
     let investor8Tokens = new BigNumber(await token.balanceOf.call(actors.investor8));
-    const invest8 = tokens2wei(9900, state.exchangeEthTokenRatio, 0);
 
     state.availableTokens = state.availableTokens.sub(tokens(9900));
-    let txres = await token.sellToken(actors.investor8, invest8, {from: actors.owner});
-    assert.equal(txres.logs[0].event, 'SellToken');
+    const txres = await token.sellToken(actors.investor8, tokens(9900), 0, {from: actors.owner});
+    assert.equal(txres.logs[0].event, 'ReservedTokensDistributed');
     assert.equal(txres.logs[0].args.to, actors.investor8);
+    assert.equal(txres.logs[0].args.group, TokenReservation.Bounty);
     assert.equal(
         txres.logs[0].args.amount,
-        wei2rawtokens(invest8, state.exchangeEthTokenRatio, 0).toString()
+        wei2rawtokens(0, 1, 0).toString()
+    );
+    assert.equal(txres.logs[1].event, 'SellToken');
+    assert.equal(txres.logs[1].args.to, actors.investor8);
+    assert.equal(
+        txres.logs[1].args.amount,
+        wei2rawtokens(tokens(9900), 1, 0).toString()
     );
     investor8Tokens = investor8Tokens.add(tokens(9900));
     assert.equal(await token.balanceOf.call(actors.investor8), investor8Tokens.toString());
