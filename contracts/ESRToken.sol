@@ -32,7 +32,7 @@ contract ESRToken is BaseICOMintableToken {
   event EthTokenExchangeRatioUpdated(uint ethTokenExchangeRatio);
 
   /// @dev Token sell event
-  event SellToken(address indexed to, uint amount);
+  event SellToken(address indexed to, uint amount, uint bonusAmount);
 
   /// @dev Token reservation mapping: key(RESERVED_X) => value(number of tokens)
   mapping(uint8 => uint) public reserved;
@@ -129,7 +129,7 @@ contract ESRToken is BaseICOMintableToken {
     availableSupply = availableSupply.sub(amount);
     balances[to_] = balances[to_].add(amount);
     assignReservedTokens(to_, RESERVED_BOUNTY_GROUP, bonusAmount);
-    emit SellToken(to_, amount);
+    emit SellToken(to_, amount, bonusAmount);
     return amount;
   }
 

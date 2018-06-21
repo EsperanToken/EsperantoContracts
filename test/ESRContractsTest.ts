@@ -246,6 +246,10 @@ contract('ESRContracts', function (accounts: string[]) {
         txres.logs[1].args.amount,
         wei2rawtokens(tokens(7200), 1, 0).toString()
     );
+    assert.equal(
+        txres.logs[1].args.bonusAmount,
+        wei2rawtokens(tokens(2000), 1, 0).toString()
+    );
     assert.equal(await token.balanceOf.call(actors.investor1), tokens(7200 + 2000));
     assert.equal(await token.availableSupply.call(), state.availableTokens.toString());
   });
@@ -397,6 +401,10 @@ contract('ESRContracts', function (accounts: string[]) {
     assert.equal(
         txres.logs[1].args.amount,
         wei2rawtokens(tokens(9900), 1, 0).toString()
+    );
+    assert.equal(
+        txres.logs[1].args.bonusAmount,
+        wei2rawtokens(tokens(1000), 1, 0).toString()
     );
     assert.equal(await token.balanceOf.call(actors.investor3), tokens(9900 + 1000));
     assert.equal(await token.availableSupply.call(), state.availableTokens.toString());
@@ -783,6 +791,10 @@ contract('ESRContracts', function (accounts: string[]) {
     assert.equal(
         txres.logs[1].args.amount,
         wei2rawtokens(tokens(9900), 1, 0).toString()
+    );
+    assert.equal(
+        txres.logs[1].args.bonusAmount,
+        wei2rawtokens(0, 1, 0).toString()
     );
     investor8Tokens = investor8Tokens.add(tokens(9900));
     assert.equal(await token.balanceOf.call(actors.investor8), investor8Tokens.toString());
