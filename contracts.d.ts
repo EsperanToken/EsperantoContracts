@@ -298,7 +298,8 @@ interface IESRToken extends IBaseICOMintableToken {
   // Token decimals
   decimals: ISimpleCallable<NumberLike>;
 
-  /** Update ETH/Token ratio
+  /**
+   * Update ETH/Token ratio
    * @param ethTokenExchangeRatio must be multiplied by ETH_TOKEN_EXCHANGE_RATIO_MULTIPLIER
    */
   updateTokenExchangeRatio(ethTokenExchangeRatio: NumberLike, tr?: Web3.TransactionRequest): Promise<ITXResult>;
