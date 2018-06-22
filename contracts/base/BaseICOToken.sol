@@ -14,6 +14,9 @@ contract BaseICOToken is BaseFixedERC20Token {
     /// @dev ICO/Pre-ICO smart contract allowed to distribute public funds for this
     address public ico;
 
+    /// @dev Token/ETH exchange ratio multiplier (for high accuracy)
+    uint public constant ETH_TOKEN_EXCHANGE_RATIO_MULTIPLIER = 1000;
+
     /// @dev Token/ETH exchange ratio
     uint public ethTokenExchangeRatio;
 

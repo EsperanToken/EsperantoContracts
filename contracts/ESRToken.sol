@@ -114,6 +114,7 @@ contract ESRToken is BaseICOMintableToken {
 
   /**
    * @dev Update ETH/Token
+   * @param ethTokenExchangeRatio_ must be multiplied on ETH_TOKEN_EXCHANGE_RATIO_MULTIPLIER
    */
   function updateTokenExchangeRatio(uint ethTokenExchangeRatio_) public onlyOwner {
     ethTokenExchangeRatio = ethTokenExchangeRatio_;
@@ -140,7 +141,7 @@ contract ESRToken is BaseICOMintableToken {
    * @return Amount of invested tokens
    */
   function icoInvestmentWei(address to_, uint amountWei_) public onlyICO returns (uint) {
-    uint amount = amountWei_ * ethTokenExchangeRatio;
+    uint amount = amountWei_.mul(ethTokenExchangeRatio).div(ETH_TOKEN_EXCHANGE_RATIO_MULTIPLIER);
     require(isValidICOInvestment(to_, amount));
     availableSupply = availableSupply.sub(amount);
     balances[to_] = balances[to_].add(amount);

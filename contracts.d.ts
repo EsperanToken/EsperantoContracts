@@ -168,6 +168,8 @@ interface IBaseICOToken extends IBaseFixedERC20Token {
   // Token/ETH exchange ratio
   ethTokenExchangeRatio: ISimpleCallable<NumberLike>;
 
+  // Token/ETH exchange ratio multiplier (for high accuracy)
+  ETH_TOKEN_EXCHANGE_RATIO_MULTIPLIER: ISimpleCallable<NumberLike>;
   /**
    * Set address of ICO smart-contract which controls token
    * initial token distribution.
@@ -296,7 +298,9 @@ interface IESRToken extends IBaseICOMintableToken {
   // Token decimals
   decimals: ISimpleCallable<NumberLike>;
 
-  // Update ETH/Token ratio
+  /** Update ETH/Token ratio
+   * @param ethTokenExchangeRatio must be multiplied by ETH_TOKEN_EXCHANGE_RATIO_MULTIPLIER
+   */
   updateTokenExchangeRatio(ethTokenExchangeRatio: NumberLike, tr?: Web3.TransactionRequest): Promise<ITXResult>;
 
   getReservedTokens: {

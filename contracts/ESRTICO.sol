@@ -104,7 +104,7 @@ contract ESRTICO is BaseICO {
     uint itokens = token.icoInvestmentWei(msg.sender, amountWei);
 
     uint bwei = amountWei.mul(bonus).div(100);
-    uint btokens = bwei.mul(token.ethTokenExchangeRatio());
+    uint btokens = bwei.mul(token.ethTokenExchangeRatio()).div(token.ETH_TOKEN_EXCHANGE_RATIO_MULTIPLIER());
     token.icoAssignReservedBounty(msg.sender, btokens);
 
     require(collectedTokens + itokens <= hardCapTokens);

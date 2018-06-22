@@ -20,6 +20,7 @@ let BONUS_05_END_AT = 1554076800; // 2019-04-01T00:00:00.000Z
 let END_AT = 1559347200; // 2019-06-01T00:00:00.000Z
 const TOKEN_UNLOCK_AT = 1569888000; // 2019-10-01T00:00:00.000Z
 const MINT_UNLOCK_AT = 1590969600; // 2020-06-01T00:00:00.000Z
+const ETH_TOKEN_EXCHANGE_RATIO_MULTIPLIER = 1000;
 
 function tokens(val: BigNumber.NumberLike): string {
   return new BigNumber(val).times(ONE_TOKEN).toString();
@@ -29,6 +30,7 @@ function tokens2wei(val: BigNumber.NumberLike, exchangeRatio: BigNumber.NumberLi
   return new BigNumber(val)
     .mul(ONE_TOKEN)
     .mul(100)
+    .mul(ETH_TOKEN_EXCHANGE_RATIO_MULTIPLIER)
     .divToInt(exchangeRatio)
     .divToInt(100 + bonus)
     .toString();
@@ -37,6 +39,7 @@ function tokens2wei(val: BigNumber.NumberLike, exchangeRatio: BigNumber.NumberLi
 function wei2rawtokens(val: BigNumber.NumberLike, exchangeRatio: BigNumber.NumberLike, bonus: number): string {
   return new BigNumber(val)
     .mul(exchangeRatio)
+    .div(ETH_TOKEN_EXCHANGE_RATIO_MULTIPLIER)
     .mul(100 + bonus)
     .divToInt(100)
     .toString();
@@ -59,7 +62,7 @@ const state = {
   investor6Wei: new BigNumber(0),
   investor7Wei: new BigNumber(0),
   investor8Wei: new BigNumber(0),
-  exchangeEthTokenRatio: new BigNumber(3000)
+  exchangeEthTokenRatio: new BigNumber(3000 * ETH_TOKEN_EXCHANGE_RATIO_MULTIPLIER)
 };
 
 contract('ESRContracts', function (accounts: string[]) {
@@ -100,6 +103,7 @@ contract('ESRContracts', function (accounts: string[]) {
     assert.equal(await token.decimals.call(), 18);
     // ETH/Token exchange ratio
     assert.equal(await token.ethTokenExchangeRatio.call(), state.exchangeEthTokenRatio.toString());
+    assert.equal(await token.ETH_TOKEN_EXCHANGE_RATIO_MULTIPLIER.call(), ETH_TOKEN_EXCHANGE_RATIO_MULTIPLIER);
 
     state.availableTokens = new BigNumber(await token.availableSupply.call());
     // Team
@@ -238,17 +242,17 @@ contract('ESRContracts', function (accounts: string[]) {
     assert.equal(txres.logs[0].args.group, TokenReservation.Bounty);
     assert.equal(
         txres.logs[0].args.amount,
-        wei2rawtokens(tokens(2000), 1, 0).toString()
+        tokens(2000)
     );
     assert.equal(txres.logs[1].event, 'SellToken');
     assert.equal(txres.logs[1].args.to, actors.investor1);
     assert.equal(
         txres.logs[1].args.amount,
-        wei2rawtokens(tokens(7200), 1, 0).toString()
+        tokens(7200)
     );
     assert.equal(
         txres.logs[1].args.bonusAmount,
-        wei2rawtokens(tokens(2000), 1, 0).toString()
+        tokens(2000)
     );
     assert.equal(await token.balanceOf.call(actors.investor1), tokens(7200 + 2000));
     assert.equal(await token.availableSupply.call(), state.availableTokens.toString());
@@ -394,17 +398,17 @@ contract('ESRContracts', function (accounts: string[]) {
     assert.equal(txres.logs[0].args.group, TokenReservation.Bounty);
     assert.equal(
         txres.logs[0].args.amount,
-        wei2rawtokens(tokens(1000), 1, 0).toString()
+        tokens(1000)
     );
     assert.equal(txres.logs[1].event, 'SellToken');
     assert.equal(txres.logs[1].args.to, actors.investor3);
     assert.equal(
         txres.logs[1].args.amount,
-        wei2rawtokens(tokens(9900), 1, 0).toString()
+        tokens(9900)
     );
     assert.equal(
         txres.logs[1].args.bonusAmount,
-        wei2rawtokens(tokens(1000), 1, 0).toString()
+        tokens(1000)
     );
     assert.equal(await token.balanceOf.call(actors.investor3), tokens(9900 + 1000));
     assert.equal(await token.availableSupply.call(), state.availableTokens.toString());
@@ -464,7 +468,7 @@ contract('ESRContracts', function (accounts: string[]) {
     assert.equal(await ico.collectedTokens.call(), state.collectedTokens.toString());
 
     // Tune ETH/Token ratio
-    state.exchangeEthTokenRatio = new BigNumber(2000);
+    state.exchangeEthTokenRatio = new BigNumber(2000 ).mul(ETH_TOKEN_EXCHANGE_RATIO_MULTIPLIER);
     txres = await token.updateTokenExchangeRatio(state.exchangeEthTokenRatio.toString(), { from: actors.owner });
     assert.equal(txres.logs[0].event, 'EthTokenExchangeRatioUpdated');
     assert.equal(txres.logs[0].args.ethTokenExchangeRatio, state.exchangeEthTokenRatio.toString());
@@ -576,7 +580,7 @@ contract('ESRContracts', function (accounts: string[]) {
     assert.equal(await ico.state.call(), ICOState.Active);
 
     // Tune ETH/Token ratio
-    state.exchangeEthTokenRatio = new BigNumber(1000);
+    state.exchangeEthTokenRatio = new BigNumber(1000 ).mul(ETH_TOKEN_EXCHANGE_RATIO_MULTIPLIER);
     txres = await token.updateTokenExchangeRatio(state.exchangeEthTokenRatio.toString(), { from: actors.owner });
     assert.equal(txres.logs[0].event, 'EthTokenExchangeRatioUpdated');
     assert.equal(txres.logs[0].args.ethTokenExchangeRatio, state.exchangeEthTokenRatio.toString());
@@ -784,17 +788,17 @@ contract('ESRContracts', function (accounts: string[]) {
     assert.equal(txres.logs[0].args.group, TokenReservation.Bounty);
     assert.equal(
         txres.logs[0].args.amount,
-        wei2rawtokens(0, 1, 0).toString()
+        0
     );
     assert.equal(txres.logs[1].event, 'SellToken');
     assert.equal(txres.logs[1].args.to, actors.investor8);
     assert.equal(
         txres.logs[1].args.amount,
-        wei2rawtokens(tokens(9900), 1, 0).toString()
+        tokens(9900)
     );
     assert.equal(
         txres.logs[1].args.bonusAmount,
-        wei2rawtokens(0, 1, 0).toString()
+        0
     );
     investor8Tokens = investor8Tokens.add(tokens(9900));
     assert.equal(await token.balanceOf.call(actors.investor8), investor8Tokens.toString());
