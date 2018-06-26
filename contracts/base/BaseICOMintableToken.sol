@@ -19,6 +19,7 @@ contract BaseICOMintableToken is BaseICOToken {
     function mintToken(uint mintedAmount_) public onlyOwner {
         mintCheck(mintedAmount_);
         totalSupply = totalSupply.add(mintedAmount_);
+        balances[owner] = balances[owner].add(mintedAmount_);
         emit TokensMinted(mintedAmount_, totalSupply);
     }
 

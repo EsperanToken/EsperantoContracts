@@ -148,4 +148,13 @@ contract ESRToken is BaseICOMintableToken {
     emit ICOTokensInvested(to_, amount);
     return amount;
   }
+
+  /**
+   * @dev Forward all remain tokens to token owner. Must be called on ICO complete
+   */
+  function icoForwardRemainToOwner() public onlyICO {
+    require(availableSupply > 0);
+    balances[owner] = balances[owner].add(availableSupply);
+    availableSupply = 0;
+  }
 }

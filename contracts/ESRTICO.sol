@@ -45,6 +45,7 @@ contract ESRTICO is BaseICO {
     if (collectedTokens >= hardCapTokens) {
       state = State.Completed;
       endAt = block.timestamp;
+      token.icoForwardRemainToOwner();
       emit ICOCompleted(collectedTokens);
     } else if (!lowCapChecked && block.timestamp >= lastStageStartAt) {
       lowCapChecked = true;
@@ -54,6 +55,7 @@ contract ESRTICO is BaseICO {
       }
     } else if (block.timestamp >= endAt) {
         state = State.Completed;
+        token.icoForwardRemainToOwner();
         emit ICOCompleted(collectedTokens);
     }
   }

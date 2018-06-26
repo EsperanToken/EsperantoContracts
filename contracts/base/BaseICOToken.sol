@@ -70,4 +70,9 @@ contract BaseICOToken is BaseFixedERC20Token {
      * @param amount_ Number of tokens distributed with decimals part
      */
     function icoAssignReservedBounty(address to_, uint amount_) public;
+
+    /**
+     * @dev Forward all remain tokens to token owner. Must be called on ICO complete
+     */
+    function icoForwardRemainToOwner() public;
 }
