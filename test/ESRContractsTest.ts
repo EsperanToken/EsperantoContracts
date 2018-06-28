@@ -2,17 +2,20 @@ import { ItTestFn } from '../globals';
 import * as BigNumber from 'bignumber.js';
 import {
   ICOState,
+  IESRTAirdrop,
   IESRTICO,
   TokenReservation
 } from '../contracts';
 import { assertEvmThrows, assertEvmInvalidOpcode } from './lib/assert';
 import { Seconds, web3IncreaseTimeTo } from './lib/time';
+const EthUtil = require('ethereumjs-util');
 
 const it = (<any>global).it as ItTestFn;
 const assert = (<any>global).assert as Chai.AssertStatic;
 
 const ESRToken = artifacts.require('./ESRToken.sol');
 const ESRTICO = artifacts.require('./ESRTICO.sol');
+const ESRTAirdrop = artifacts.require('./ESRTAirdrop.sol');
 const ONE_TOKEN = new BigNumber('1e18');
 const BONUS_20_END_AT = 1538352000; // 2018-10-01T00:00:00.000Z
 const BONUS_10_END_AT = 1546300800; // 2019-01-01T00:00:00.000Z
@@ -21,6 +24,9 @@ let END_AT = 1559347200; // 2019-06-01T00:00:00.000Z
 const TOKEN_UNLOCK_AT = 1569888000; // 2019-10-01T00:00:00.000Z
 const MINT_UNLOCK_AT = 1590969600; // 2020-06-01T00:00:00.000Z
 const ETH_TOKEN_EXCHANGE_RATIO_MULTIPLIER = 1000;
+
+// FIXME: this value only for currently specified in run-tests-mnemonic.txt seeds!
+const OWNER_PKEY: string = "9455ac4d040967c9fddaa51fce2a82c6c5a7102ddcac53d0dab79b88cc36d7e3";
 
 function tokens(val: BigNumber.NumberLike): string {
   return new BigNumber(val).times(ONE_TOKEN).toString();
@@ -45,8 +51,30 @@ function wei2rawtokens(val: BigNumber.NumberLike, exchangeRatio: BigNumber.Numbe
     .toString();
 }
 
+function signAirdrop(privateKey: string, contractAddress: string, tokenAddress: string, address: string, amount: BigNumber.NumberLike): any {
+    const buffer = Buffer.concat([
+        Buffer.from('Signed for Airdrop'),
+        Buffer.from(contractAddress.replace(/^0x/, ''), 'hex'),
+        Buffer.from(tokenAddress.replace(/^0x/, ''), 'hex'),
+        Buffer.from(address.replace(/^0x/, ''), 'hex'),
+        Buffer.from(new BigNumber(amount).toString(16).padStart(64, "0"), 'hex')
+    ]);
+    const hash = EthUtil.keccak(buffer);
+    const signature = EthUtil.ecsign(hash, Buffer.from(privateKey, 'hex'));
+    if (!!signature) {
+      return {v: signature.v,
+            r: new BigNumber(signature.r.toString('hex'), 16),
+            s: new BigNumber(signature.s.toString('hex'), 16)
+      };
+    } else {
+      console.error('\x1b[41m%s\x1b[37m', 'Could not sign message for address:', '\x1b[0m', address);
+    }
+    return null;
+}
+
 // ICO Instance
 let Ico: IESRTICO | null;
+let Airdrop: IESRTAirdrop | null;
 
 const state = {
   availableTokens: new BigNumber(0),
@@ -87,6 +115,8 @@ contract('ESRContracts', function (accounts: string[]) {
     reserve3: accounts[cnt++]
   } as { [k: string]: string };
   console.log('Actors: ', actors);
+  assert.equal('0x'+ EthUtil.pubToAddress(EthUtil.privateToPublic(Buffer.from(OWNER_PKEY, 'hex'))).toString('hex'),
+      actors.owner, "Please set correct OWNER_PKEY");
 
   it('should be correct initial token state', async () => {
     const token = await ESRToken.deployed();
@@ -966,6 +996,130 @@ contract('ESRContracts', function (accounts: string[]) {
     assert.equal(txres.logs[0].args.mintedAmount, mintedAmount.toString());
     assert.equal(txres.logs[0].args.totalSupply, totalSupply.toString());
     assert.equal(await token.totalSupply.call(), totalSupply.toString());
+    assert.equal(await token.balanceOf.call(actors.owner), state.ownerTokens.toString());
+  });
+
+  it('should airdrop contract deployed', async () => {
+    const token = await ESRToken.deployed();
+    Airdrop = await ESRTAirdrop.new(
+        token.address,
+        actors.owner,
+        {
+          from: actors.owner
+        }
+    );
+
+    // Token should be unlocked
+    assert.equal(await token.locked.call(), true);
+    await token.unlock({ from: actors.owner });
+    assert.equal(await token.locked.call(), false);
+
+    // Check correct initial state
+    assert.equal(await Airdrop.locked.call(), true);
+    assert.equal(await Airdrop.token.call(), token.address);
+    assert.equal(await Airdrop.tokenHolder.call(), actors.owner);
+    assert.equal(await Airdrop.owner.call(), actors.owner);
+  });
+
+  it('should be not be payable airdrop', async () => {
+    assert.isTrue(Airdrop != null);
+    const airdrop = Airdrop!!;
+    await assertEvmThrows(airdrop.sendTransaction({ value: 1, from: actors.owner }));
+    await assertEvmThrows(airdrop.sendTransaction({ value: 1, from: actors.someone1 }));
+  });
+
+  it('should be lockable airdrop', async () => {
+    assert.isTrue(Airdrop != null);
+    const airdrop = Airdrop!!;
+
+    // Airdrop locked
+    assert.equal(await airdrop.locked.call(), true);
+    // Unlock allowed only for owner
+    await assertEvmThrows(airdrop.unlock({ from: actors.someone1 }));
+    let txres = await airdrop.unlock({ from: actors.owner });
+    assert.equal(txres.logs[0].event, 'Unlock');
+
+    // Airdrop unlocked
+    assert.equal(await airdrop.locked.call(), false);
+
+    // Lock allowed only for owner
+    await assertEvmThrows(airdrop.lock({ from: actors.someone1 }));
+    txres = await airdrop.lock({ from: actors.owner });
+    assert.equal(txres.logs[0].event, 'Lock');
+  });
+
+  it('airdrop lifecycle', async () => {
+    const token = await ESRToken.deployed();
+    assert.isTrue(Airdrop != null);
+    const airdrop = Airdrop!!;
+
+    // Airdrop locked
+    assert.equal(await airdrop.locked.call(), true);
+    await airdrop.unlock({ from: actors.owner });
+    // Airdrop unlocked
+    assert.equal(await airdrop.locked.call(), false);
+
+    // Airdrop not working without allowance from tokenHolder
+    await token.approve(airdrop.address, await token.balanceOf.call(actors.owner), { from: actors.owner });
+    state.ownerTokens = new BigNumber(await token.balanceOf.call(actors.owner));
+
+    let amount = tokens(1000);
+    // Sign airdrop request by owner pkey for: airdrop address, token address, investor1 address, amount
+    let vrs = signAirdrop(OWNER_PKEY, airdrop.address, token.address, actors.investor1, amount);
+
+    // only for investor1
+    await assertEvmThrows(airdrop.airdrop(vrs.v, vrs.r, vrs.s, amount, {from: actors.owner}));
+    await assertEvmThrows(airdrop.airdrop(vrs.v, vrs.r, vrs.s, amount, {from: actors.investor2}));
+
+    // only for correct amount
+    await assertEvmThrows(airdrop.airdrop(vrs.v, vrs.r, vrs.s, 1, {from: actors.investor1}));
+
+    let investor1Tokens = new BigNumber(await token.balanceOf.call(actors.investor1));
+    assert.equal(await airdrop.getAirdropStatus(actors.investor1), false);
+    let txres = await airdrop.airdrop(vrs.v, vrs.r, vrs.s, amount, {from: actors.investor1});
+    assert.equal(await airdrop.getAirdropStatus(actors.investor1), true);
+    assert.equal(txres.logs[0].event, 'AirdropToken');
+    assert.equal(txres.logs[0].args.to, actors.investor1);
+    assert.equal(txres.logs[0].args.amount, amount);
+    investor1Tokens = investor1Tokens.add(amount);
+    state.ownerTokens = state.ownerTokens.sub(amount);
+    assert.equal(await token.balanceOf.call(actors.investor1), investor1Tokens.toString());
+    assert.equal(await token.balanceOf.call(actors.owner), state.ownerTokens.toString());
+
+    // only once
+    await assertEvmThrows(airdrop.airdrop(vrs.v, vrs.r, vrs.s, amount, {from: actors.investor1}));
+
+    amount = tokens(2000);
+    // Sign airdrop request by owner pkey for: wrong airdrop address, token address, investor2 address, amount
+    vrs = signAirdrop(OWNER_PKEY, token.address, token.address, actors.investor2, amount);
+    await assertEvmThrows(airdrop.airdrop(vrs.v, vrs.r, vrs.s, amount, {from: actors.investor2}));
+
+    // Sign airdrop request by owner pkey for: airdrop address, wrong token address, investor2 address, amount
+    vrs = signAirdrop(OWNER_PKEY, airdrop.address, airdrop.address, actors.investor2, amount);
+    await assertEvmThrows(airdrop.airdrop(vrs.v, vrs.r, vrs.s, amount, {from: actors.investor2}));
+
+    // Sign airdrop request by owner pkey for: airdrop address, token address, investor2 address, amount
+    vrs = signAirdrop(OWNER_PKEY, airdrop.address, token.address, actors.investor2, amount);
+
+    await airdrop.lock({ from: actors.owner });
+    assert.equal(await airdrop.locked.call(), true);
+    // not when locked
+    await assertEvmThrows(airdrop.airdrop(vrs.v, vrs.r, vrs.s, amount, {from: actors.investor2}));
+
+    await airdrop.unlock({ from: actors.owner });
+    // Airdrop unlocked
+    assert.equal(await airdrop.locked.call(), false);
+
+    let investor2Tokens = new BigNumber(await token.balanceOf.call(actors.investor2));
+    assert.equal(await airdrop.getAirdropStatus(actors.investor2), false);
+    txres = await airdrop.airdrop(vrs.v, vrs.r, vrs.s, amount, {from: actors.investor2});
+    assert.equal(await airdrop.getAirdropStatus(actors.investor2), true);
+    assert.equal(txres.logs[0].event, 'AirdropToken');
+    assert.equal(txres.logs[0].args.to, actors.investor2);
+    assert.equal(txres.logs[0].args.amount, amount);
+    investor2Tokens = investor2Tokens.add(amount);
+    state.ownerTokens = state.ownerTokens.sub(amount);
+    assert.equal(await token.balanceOf.call(actors.investor2), investor2Tokens.toString());
     assert.equal(await token.balanceOf.call(actors.owner), state.ownerTokens.toString());
   });
 });

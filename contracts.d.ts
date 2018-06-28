@@ -7,6 +7,7 @@ interface Artifacts {
   require(name: './ESRToken.sol'): IContract<IESRToken>;
   require(name: './ESRTICO.sol'): IContract<IESRTICO>;
   require(name: './Migrations.sol'): IContract<IContractInstance>;
+  require(name: './ESRTAirdrop.sol'): IContract<IESRTAirdrop>;
 }
 
 declare global {
@@ -349,4 +350,38 @@ interface IESRTICO extends IBaseICO {
    * @param lastStageStartAt seconds since epoch. Used if it is not zero.
    */
   tuneLastStageStartAt(lastStageStartAt: NumberLike, tr?: Web3.TransactionRequest): Promise<ITXResult>;
+}
+
+/**
+ * @dev Base abstract smart contract for Airdrop
+ */
+interface IBaseAirdrop extends IContractInstance, ILockable {
+
+  // Token address
+  token: ISimpleCallable<address>;
+
+  // Token holder address
+  tokenHolder: ISimpleCallable<address>;
+
+  /**
+   * Do airdrop for user if recovered address associated with
+   * the public key from elliptic curve signature matches contract owner
+   * @param v
+   * @param r
+   * @param s
+   * @param amount
+   */
+  airdrop(v: NumberLike, r: NumberLike, s: NumberLike, amount: NumberLike, tr?: Web3.TransactionRequest): Promise<ITXResult>;
+
+  /**
+   * Get Airdrop status for user address. true - airdrop complete
+   * @param user address for test
+   */
+  getAirdropStatus(user: address, tr?: Web3.TransactionRequest): Promise<boolean>;
+}
+
+/**
+ * ESRT token airdrop contract
+ */
+interface IESRTAirdrop extends IBaseAirdrop {
 }
