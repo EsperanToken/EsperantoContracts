@@ -59,7 +59,7 @@ function signAirdrop(privateKey: string, contractAddress: string, tokenAddress: 
         Buffer.from(address.replace(/^0x/, ''), 'hex'),
         Buffer.from(new BigNumber(amount).toString(16).padStart(64, "0"), 'hex')
     ]);
-    const hash = EthUtil.keccak(buffer);
+    const hash = EthUtil.hashPersonalMessage(EthUtil.keccak(buffer));
     const signature = EthUtil.ecsign(hash, Buffer.from(privateKey, 'hex'));
     if (!!signature) {
       return {v: signature.v,

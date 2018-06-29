@@ -23,17 +23,7 @@ contract BaseAirdrop is Lockable {
     }
 
     function airdrop(uint8 v, bytes32 r, bytes32 s, uint amount) public whenNotLocked {
-        if (users[msg.sender] ||
-            ecrecover(
-                keccak256(
-                    abi.encodePacked(
-                        "Signed for Airdrop",
-                        address(this),
-                        address(token),
-                        msg.sender,
-                        amount
-                    )
-                ), v, r, s) != owner) {
+        if (users[msg.sender] || ecrecover(prefixedHash(amount), v, r, s) != owner) {
             revert();
         }
         users[msg.sender] = true;
@@ -43,5 +33,20 @@ contract BaseAirdrop is Lockable {
 
     function getAirdropStatus(address user) public constant returns (bool success) {
         return users[user];
+    }
+
+    function originalHash(uint amount) internal view returns (bytes32) {
+        return keccak256(abi.encodePacked(
+                "Signed for Airdrop",
+                address(this),
+                address(token),
+                msg.sender,
+                amount
+            ));
+    }
+
+    function prefixedHash(uint amount) internal view returns (bytes32) {
+        bytes memory prefix = "\x19Ethereum Signed Message:\n32";
+        return keccak256(abi.encodePacked(prefix, originalHash(amount)));
     }
 }
